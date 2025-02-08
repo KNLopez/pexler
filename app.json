@@ -25,6 +25,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "303fa813-5b6f-49e1-9280-63885245d963"
+      }
+    },
+    "owner": "kurtdevph"
   }
 }
