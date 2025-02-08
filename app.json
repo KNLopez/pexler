@@ -3,7 +3,7 @@
     "name": "dooodle",
     "slug": "dooodle",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -31,6 +31,14 @@
         "projectId": "303fa813-5b6f-49e1-9280-63885245d963"
       }
     },
+    "plugins": [
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "DEFAULT"
+        }
+      ]
+    ],
     "owner": "kurtdevph"
   }
 }

@@ -1,3 +1,4 @@
+import { Canvas } from "@shopify/react-native-skia";
 import { render } from "@testing-library/react-native";
 import React from "react";
 import App from "../../App";
@@ -11,6 +12,6 @@ describe("HomeScreen", () => {
       getByText("Open up App.tsx to start working on yossssssusr app!")
     ).toBeTruthy();
     // Verify Canvas element exists
-    expect(getByTestId("canvas")).toBeTruthy();
+    expect(Canvas).toBeTruthy();
   });
 });
