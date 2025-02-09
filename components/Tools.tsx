@@ -1,11 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
-import { ToolType } from "../hooks/usePixelEditor";
+import { MirrorMode, ToolType } from "../hooks/usePixelEditor";
 import { ColorPicker } from "./ColorPicker";
 
 const ICON_SIZE = 25;
-const COLOR_ICON_SIZE = 22;
+const COLOR_ICON_SIZE = 25;
 const DEFAULT_COLORS = [
   "#6366F1", // Indigo
   "#EC4899", // Pink
@@ -30,6 +30,8 @@ type ToolsProps = {
   onZoomOut: () => void;
   onRecenter: () => void;
   canZoomOut: boolean;
+  mirrorMode: MirrorMode;
+  setMirrorMode: (mode: MirrorMode) => void;
 };
 
 export const Tools = ({
@@ -46,6 +48,8 @@ export const Tools = ({
   onZoomOut,
   onRecenter,
   canZoomOut,
+  mirrorMode,
+  setMirrorMode,
 }: ToolsProps) => {
   const [colors, setColors] = useState(DEFAULT_COLORS);
   const [isColorPickerVisible, setIsColorPickerVisible] = useState(false);
@@ -53,7 +57,7 @@ export const Tools = ({
   const handleColorSelect = (color: string) => {
     setColors((prev) => {
       const newColors = [...prev];
-      newColors.pop(); // Remove last color
+      newColors.splice(0, 1);
       return [...newColors, color]; // Add new color
     });
     onColorChange(color);
@@ -103,11 +107,7 @@ export const Tools = ({
 
         {/* Tools */}
         <View style={styles.toolbarSection}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.toolsScrollContainer}
-          >
+          <View style={styles.toolbarRow}>
             <View style={styles.tools}>
               <TouchableOpacity
                 style={[
@@ -178,7 +178,59 @@ export const Tools = ({
                 />
               </TouchableOpacity>
             </View>
-          </ScrollView>
+
+            <View style={styles.divider} />
+
+            <View style={[styles.tools, styles.mirrorTools]}>
+              <TouchableOpacity
+                style={[
+                  styles.tool,
+                  mirrorMode === "horizontal" && styles.activeTool,
+                ]}
+                onPress={() =>
+                  setMirrorMode(
+                    mirrorMode === "horizontal" ? "none" : "horizontal"
+                  )
+                }
+              >
+                <MaterialCommunityIcons
+                  name="arrow-left-right"
+                  size={24}
+                  color={mirrorMode === "horizontal" ? "#6366F1" : "#fff"}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.tool,
+                  mirrorMode === "vertical" && styles.activeTool,
+                ]}
+                onPress={() =>
+                  setMirrorMode(mirrorMode === "vertical" ? "none" : "vertical")
+                }
+              >
+                <MaterialCommunityIcons
+                  name="arrow-up-down"
+                  size={24}
+                  color={mirrorMode === "vertical" ? "#6366F1" : "#fff"}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.tool,
+                  mirrorMode === "both" && styles.activeTool,
+                ]}
+                onPress={() =>
+                  setMirrorMode(mirrorMode === "both" ? "none" : "both")
+                }
+              >
+                <MaterialCommunityIcons
+                  name="arrow-all"
+                  size={24}
+                  color={mirrorMode === "both" ? "#6366F1" : "#fff"}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         <ColorPicker
@@ -212,6 +264,11 @@ const styles = StyleSheet.create({
   toolbarSection: {
     alignItems: "center",
   },
+  toolbarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 20,
+  },
   toolsScrollContainer: {
     flexGrow: 1,
     justifyContent: "center",
@@ -238,15 +295,15 @@ const styles = StyleSheet.create({
   },
   palette: {
     flexDirection: "row",
-    gap: 2,
     backgroundColor: "#333",
-    padding: 3,
+    padding: 10,
     borderRadius: 6,
+    gap: 10,
   },
   colorButton: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 25,
+    height: 25,
+    borderRadius: 12.5,
     borderWidth: 1,
     borderColor: "#666",
   },
@@ -258,5 +315,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#666",
     alignItems: "center",
     justifyContent: "center",
+  },
+  divider: {
+    height: "100%",
+    width: 1,
+    backgroundColor: "#666",
+  },
+  mirrorTools: {
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+  activeTool: {
+    backgroundColor: "#000",
+    borderWidth: 2,
+    borderColor: "#6366F1",
   },
 });

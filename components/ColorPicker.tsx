@@ -1,6 +1,21 @@
 import { Slider } from "@miblanchard/react-native-slider";
+import {
+  Canvas,
+  LinearGradient,
+  Path,
+  Rect,
+  vec,
+} from "@shopify/react-native-skia";
 import { useCallback, useState } from "react";
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Dimensions,
+  GestureResponderEvent,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 type ColorPickerProps = {
   isVisible: boolean;
@@ -8,6 +23,8 @@ type ColorPickerProps = {
   onSelectColor: (color: string) => void;
   initialColor?: string;
 };
+
+const PICKER_SIZE = Math.min(300, Dimensions.get("window").width * 0.7);
 
 export const ColorPicker = ({
   isVisible,
@@ -18,6 +35,7 @@ export const ColorPicker = ({
   const [hue, setHue] = useState(0);
   const [saturation, setSaturation] = useState(100);
   const [lightness, setLightness] = useState(50);
+  const [isDragging, setIsDragging] = useState(false);
 
   const hslToHex = useCallback((h: number, s: number, l: number) => {
     l /= 100;
@@ -31,6 +49,15 @@ export const ColorPicker = ({
     };
     return `#${f(0)}${f(8)}${f(4)}`;
   }, []);
+
+  const handleColorPickerPress = (event: GestureResponderEvent) => {
+    const { locationX, locationY } = event.nativeEvent;
+    const newHue = (locationX / PICKER_SIZE) * 360;
+    const newSaturation = 100 - (locationY / PICKER_SIZE) * 100;
+
+    setHue(Math.max(0, Math.min(360, newHue)));
+    setSaturation(Math.max(0, Math.min(100, newSaturation)));
+  };
 
   const currentColor = hslToHex(hue, saturation, lightness);
 
@@ -52,34 +79,53 @@ export const ColorPicker = ({
             <Text style={styles.colorHex}>{currentColor}</Text>
           </View>
 
-          <View style={styles.sliderContainer}>
-            <Text style={styles.label}>Hue</Text>
-            <Slider
-              value={hue}
-              onValueChange={(value) =>
-                setHue(Array.isArray(value) ? value[0] : value)
-              }
-              minimumValue={0}
-              maximumValue={360}
-              minimumTrackTintColor="#000"
-              maximumTrackTintColor="#000"
-              thumbTintColor={currentColor}
-            />
-          </View>
-
-          <View style={styles.sliderContainer}>
-            <Text style={styles.label}>Saturation</Text>
-            <Slider
-              value={saturation}
-              onValueChange={(value) =>
-                setSaturation(Array.isArray(value) ? value[0] : value)
-              }
-              minimumValue={0}
-              maximumValue={100}
-              minimumTrackTintColor="#000"
-              maximumTrackTintColor="#000"
-              thumbTintColor={currentColor}
-            />
+          <View style={styles.pickerContainer}>
+            <View
+              style={styles.colorPickerWrapper}
+              onStartShouldSetResponder={() => true}
+              onResponderGrant={(e) => {
+                setIsDragging(true);
+                handleColorPickerPress(e);
+              }}
+              onResponderMove={handleColorPickerPress}
+              onResponderRelease={() => setIsDragging(false)}
+            >
+              <Canvas style={styles.colorPicker}>
+                {/* Hue gradient background */}
+                <Rect x={0} y={0} width={PICKER_SIZE} height={PICKER_SIZE}>
+                  <LinearGradient
+                    start={vec(0, 0)}
+                    end={vec(PICKER_SIZE, 0)}
+                    colors={[
+                      "#FF0000",
+                      "#FFFF00",
+                      "#00FF00",
+                      "#00FFFF",
+                      "#0000FF",
+                      "#FF00FF",
+                      "#FF0000",
+                    ]}
+                  />
+                </Rect>
+                {/* Saturation overlay */}
+                <Rect x={0} y={0} width={PICKER_SIZE} height={PICKER_SIZE}>
+                  <LinearGradient
+                    start={vec(0, PICKER_SIZE)}
+                    end={vec(0, 0)}
+                    colors={["#FFFFFF", "rgba(255, 255, 255, 0)"]}
+                  />
+                </Rect>
+                {/* Selection indicator */}
+                <Path
+                  path={`M ${(hue / 360) * PICKER_SIZE} ${
+                    PICKER_SIZE - (saturation / 100) * PICKER_SIZE
+                  } h 10 v 10 h -10 Z`}
+                  color="#FFFFFF"
+                  style="stroke"
+                  strokeWidth={2}
+                />
+              </Canvas>
+            </View>
           </View>
 
           <View style={styles.sliderContainer}>
@@ -125,8 +171,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#333",
     borderRadius: 16,
     padding: 20,
-    width: "80%",
+    width: "90%",
     maxWidth: 400,
+    alignItems: "center",
   },
   title: {
     color: "#fff",
@@ -153,7 +200,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textTransform: "uppercase",
   },
+  pickerContainer: {
+    marginBottom: 20,
+    alignItems: "center",
+  },
+  colorPickerWrapper: {
+    width: PICKER_SIZE,
+    height: PICKER_SIZE,
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  colorPicker: {
+    width: PICKER_SIZE,
+    height: PICKER_SIZE,
+  },
   sliderContainer: {
+    width: "100%",
     marginBottom: 20,
   },
   label: {

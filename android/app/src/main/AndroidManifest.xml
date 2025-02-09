@@ -24,9 +24,9 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="dooodle"/>
         <data android:scheme="com.anonymous.dooodle"/>
         <data android:scheme="exp+dooodle"/>
-        <data android:scheme="dooodle"/>
       </intent-filter>
     </activity>
   </application>

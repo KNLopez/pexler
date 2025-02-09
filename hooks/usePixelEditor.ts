@@ -1,6 +1,8 @@
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useCallback, useEffect, useState } from "react";
+import { MirrorMode, useMirror } from "./useMirror";
 
+export type { MirrorMode };
 export type Pixel = {
   x: number;
   y: number;
@@ -26,6 +28,8 @@ interface HistoryEntry {
 
 export const usePixelEditor = (initialGridSize: number = 32) => {
   const [gridSize, setGridSize] = useState(initialGridSize);
+  const { mirrorMode, setMirrorMode, getMirroredPositions } =
+    useMirror(gridSize);
   const [layers, setLayers] = useState<Layer[]>([
     {
       id: "layer-1",
@@ -169,10 +173,12 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
           if (layer.id !== activeLayerId) return layer;
 
           let newPixels = [...layer.pixels];
+          const mirroredPositions = getMirroredPositions(gridX, gridY);
 
           if (currentTool === "eraser") {
             newPixels = layer.pixels.filter(
-              (p) => !(p.x === gridX && p.y === gridY)
+              (p) =>
+                !mirroredPositions.some((mp) => mp.x === p.x && mp.y === p.y)
             );
           } else if (currentTool === "fill") {
             const targetColor = layer.pixels.find(
@@ -221,15 +227,24 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
               }
             };
 
-            floodFill(gridX, gridY);
+            // Apply flood fill to all mirrored positions
+            mirroredPositions.forEach((pos) => {
+              floodFill(pos.x, pos.y);
+            });
           } else {
-            const filtered = layer.pixels.filter(
-              (p) => !(p.x === gridX && p.y === gridY)
+            // Remove any existing pixels at the mirrored positions
+            newPixels = newPixels.filter(
+              (p) =>
+                !mirroredPositions.some((mp) => mp.x === p.x && mp.y === p.y)
             );
-            newPixels = [
-              ...filtered,
-              { x: gridX, y: gridY, color: currentColor },
-            ];
+            // Add new pixels at all mirrored positions
+            mirroredPositions.forEach((pos) => {
+              newPixels.push({
+                x: pos.x,
+                y: pos.y,
+                color: currentColor,
+              });
+            });
           }
 
           return { ...layer, pixels: newPixels };
@@ -239,7 +254,15 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
         return newLayers;
       });
     },
-    [currentColor, currentTool, gridSize, zoom, activeLayerId, addToHistory]
+    [
+      currentColor,
+      currentTool,
+      gridSize,
+      zoom,
+      activeLayerId,
+      addToHistory,
+      getMirroredPositions,
+    ]
   );
 
   const clearCanvas = useCallback(() => {
@@ -287,25 +310,6 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
     return Math.ceil((canvasSize / canvasSize) * 100);
   }, []);
 
-  const constrainPanOffset = useCallback(
-    (
-      offset: { x: number; y: number },
-      canvasSize: number,
-      currentZoom: number
-    ) => {
-      const scaledSize = canvasSize * (currentZoom / 100);
-
-      const diffX = scaledSize - canvasSize;
-      const diffY = scaledSize - canvasSize;
-
-      return {
-        x: Math.max(Math.min(offset.x, 0), -diffX),
-        y: Math.max(Math.min(offset.y, 0), -diffY),
-      };
-    },
-    []
-  );
-
   const handlePanMove = useCallback(
     (dx: number, dy: number, canvasSize: number) => {
       if (!isPanning) return;
@@ -315,10 +319,10 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
           x: prev.x + dx,
           y: prev.y + dy,
         };
-        return constrainPanOffset(newOffset, canvasSize, zoom);
+        return newOffset;
       });
     },
-    [zoom, constrainPanOffset, isPanning]
+    [zoom, isPanning]
   );
 
   const handlePanEnd = useCallback(() => {
@@ -334,7 +338,7 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
   const setZoomConstrained = useCallback(
     (newZoom: number, canvasSize: number) => {
       const minZoom = calculateMinZoom(canvasSize);
-      const constrainedZoom = Math.max(minZoom, Math.min(newZoom, 200));
+      const constrainedZoom = Math.max(minZoom, Math.min(newZoom, 1000));
       setZoom(constrainedZoom);
 
       const centeredOffset = centerGrid(canvasSize, constrainedZoom);
@@ -352,6 +356,8 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
     activeLayerId,
     currentColor,
     currentTool,
+    mirrorMode,
+    setMirrorMode,
     zoom,
     panOffset,
     handlePixelPress,
@@ -370,7 +376,6 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
     setPanOffset,
     setZoomConstrained,
     calculateMinZoom,
-    constrainPanOffset,
     addLayer,
     deleteLayer,
     duplicateLayer,

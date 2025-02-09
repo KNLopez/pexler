@@ -156,7 +156,6 @@ export const MainCanvas = forwardRef<ViewShot, MainCanvasProps>(
             {
               width: saveCanvasSize,
               height: saveCanvasSize,
-              backgroundColor: "#fff",
             },
           ]}
           pointerEvents="none"
@@ -171,7 +170,13 @@ export const MainCanvas = forwardRef<ViewShot, MainCanvasProps>(
               height: saveCanvasSize,
             }}
           >
-            <Canvas style={{ width: saveCanvasSize, height: saveCanvasSize }}>
+            <Canvas
+              style={{
+                width: saveCanvasSize,
+                height: saveCanvasSize,
+                backgroundColor: "transparent",
+              }}
+            >
               <PixelCanvas
                 pixels={pixels}
                 gridSize={gridSize}
@@ -232,7 +237,7 @@ export const MainCanvas = forwardRef<ViewShot, MainCanvasProps>(
           <View style={styles.rightControls}>
             <TouchableOpacity
               style={styles.controlButton}
-              onPress={() => onZoomChange(Math.min(200, currentZoom + 25))}
+              onPress={() => onZoomChange(Math.min(1000, currentZoom + 25))}
             >
               <MaterialCommunityIcons
                 name="magnify-plus"
@@ -262,6 +267,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 50,
   },
   canvasWithControls: {
     flexDirection: "row",

@@ -3,8 +3,8 @@ import { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const ICON_SIZE = 18;
-const GRID_SIZE_OPTIONS = [16, 32, 64];
-const ZOOM_OPTIONS = [100, 125, 150, 175, 200];
+const GRID_SIZE_OPTIONS = [8, 16, 32, 64, 128, 256];
+const ZOOM_OPTIONS = [100, 125, 150, 175, 200, 300, 500, 1000];
 
 type HeaderProps = {
   gridSize: number;
@@ -98,27 +98,32 @@ export const Header = ({
             )}
           </View>
 
-          {/* Layer Toggle Button */}
-          <TouchableOpacity style={styles.iconButton} onPress={onToggleLayers}>
-            <MaterialCommunityIcons
-              name="layers"
-              size={ICON_SIZE}
-              color="#fff"
-            />
-          </TouchableOpacity>
+          <View style={styles.iconButtons}>
+            {/* Layer Toggle Button */}
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={onToggleLayers}
+            >
+              <MaterialCommunityIcons
+                name="layers"
+                size={ICON_SIZE}
+                color="#fff"
+              />
+            </TouchableOpacity>
 
-          {/* Save Button */}
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={onSave}
-            disabled={isSaving}
-          >
-            <MaterialCommunityIcons
-              name="content-save"
-              size={ICON_SIZE}
-              color={isSaving ? "#666" : "#fff"}
-            />
-          </TouchableOpacity>
+            {/* Save Button */}
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={onSave}
+              disabled={isSaving}
+            >
+              <MaterialCommunityIcons
+                name="content-save"
+                size={ICON_SIZE}
+                color={isSaving ? "#666" : "#fff"}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>
@@ -185,6 +190,12 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     color: "#fff",
     textAlign: "center",
+  },
+  iconButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginLeft: "auto",
   },
   iconButton: {
     padding: 8,
