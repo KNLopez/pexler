@@ -7,17 +7,35 @@ export type Pixel = {
   color: string;
 };
 
+export type Layer = {
+  id: string;
+  name: string;
+  pixels: Pixel[];
+  visible: boolean;
+  opacity: number;
+};
+
 export type ToolType = "pen" | "eraser" | "fill";
-export type ActionType = "draw" | "erase" | "fill" | "clear";
+export type ActionType = "draw" | "erase" | "fill" | "clear" | "layer";
 
 interface HistoryEntry {
-  pixels: Pixel[];
+  layers: Layer[];
+  activeLayerId: string;
   action: ActionType;
 }
 
 export const usePixelEditor = (initialGridSize: number = 32) => {
   const [gridSize, setGridSize] = useState(initialGridSize);
-  const [pixels, setPixels] = useState<Pixel[]>([]);
+  const [layers, setLayers] = useState<Layer[]>([
+    {
+      id: "layer-1",
+      name: "Layer 1",
+      pixels: [],
+      visible: true,
+      opacity: 1,
+    },
+  ]);
+  const [activeLayerId, setActiveLayerId] = useState("layer-1");
   const [currentColor, setCurrentColor] = useState("#6366F1");
   const [currentTool, setCurrentTool] = useState<ToolType>("pen");
   const [zoom, setZoom] = useState(100);
@@ -38,122 +56,219 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
   }, []);
 
   const addToHistory = useCallback(
-    (newPixels: Pixel[], action: ActionType) => {
+    (newLayers: Layer[], action: ActionType) => {
       setHistory((prev) => [
         ...prev.slice(0, historyIndex + 1),
-        { pixels: [...newPixels], action },
+        {
+          layers: JSON.parse(JSON.stringify(newLayers)),
+          activeLayerId,
+          action,
+        },
       ]);
       setHistoryIndex((prev) => prev + 1);
     },
-    [historyIndex]
+    [historyIndex, activeLayerId]
   );
+
+  const addLayer = useCallback(() => {
+    const newLayer: Layer = {
+      id: `layer-${layers.length + 1}`,
+      name: `Layer ${layers.length + 1}`,
+      pixels: [],
+      visible: true,
+      opacity: 1,
+    };
+
+    setLayers((prev) => {
+      const newLayers = [...prev, newLayer];
+      addToHistory(newLayers, "layer");
+      return newLayers;
+    });
+    setActiveLayerId(newLayer.id);
+  }, [layers.length, addToHistory]);
+
+  const deleteLayer = useCallback(
+    (layerId: string) => {
+      if (layers.length <= 1) return;
+
+      setLayers((prev) => {
+        const newLayers = prev.filter((l) => l.id !== layerId);
+        addToHistory(newLayers, "layer");
+        return newLayers;
+      });
+
+      if (layerId === activeLayerId) {
+        setActiveLayerId(layers[layers.length - 2].id);
+      }
+    },
+    [layers, activeLayerId, addToHistory]
+  );
+
+  const duplicateLayer = useCallback(
+    (layerId: string) => {
+      const layerToDuplicate = layers.find((l) => l.id === layerId);
+      if (!layerToDuplicate) return;
+
+      const newLayer: Layer = {
+        id: `layer-${layers.length + 1}`,
+        name: `${layerToDuplicate.name} Copy`,
+        pixels: JSON.parse(JSON.stringify(layerToDuplicate.pixels)),
+        visible: true,
+        opacity: 1,
+      };
+
+      setLayers((prev) => {
+        const newLayers = [...prev, newLayer];
+        addToHistory(newLayers, "layer");
+        return newLayers;
+      });
+      setActiveLayerId(newLayer.id);
+    },
+    [layers, addToHistory]
+  );
+
+  const updateLayer = useCallback(
+    (layerId: string, updates: Partial<Layer>) => {
+      setLayers((prev) => {
+        const newLayers = prev.map((layer) =>
+          layer.id === layerId ? { ...layer, ...updates } : layer
+        );
+        addToHistory(newLayers, "layer");
+        return newLayers;
+      });
+    },
+    [addToHistory]
+  );
+
+  const getVisiblePixels = useCallback(() => {
+    return layers
+      .filter((layer) => layer.visible)
+      .flatMap((layer) =>
+        layer.pixels.map((pixel) => ({
+          ...pixel,
+          opacity: layer.opacity,
+        }))
+      );
+  }, [layers]);
 
   const handlePixelPress = useCallback(
     (x: number, y: number, canvasSize: number) => {
       const scaledSize = canvasSize * (zoom / 100);
       const pixelSize = scaledSize / gridSize;
 
-      // Convert the clicked coordinates to grid coordinates
-      // First, normalize the coordinates to the canvas size
       const normalizedX = (x / scaledSize) * canvasSize;
       const normalizedY = (y / scaledSize) * canvasSize;
 
-      // Then calculate the grid position
       const gridX = Math.floor((normalizedX / canvasSize) * gridSize);
       const gridY = Math.floor((normalizedY / canvasSize) * gridSize);
 
-      // Ensure we're within grid bounds
       if (gridX < 0 || gridX >= gridSize || gridY < 0 || gridY >= gridSize)
         return;
 
-      setPixels((prev) => {
-        let newPixels = [...prev];
+      setLayers((prev) => {
+        const newLayers = prev.map((layer) => {
+          if (layer.id !== activeLayerId) return layer;
 
-        if (currentTool === "eraser") {
-          newPixels = prev.filter((p) => !(p.x === gridX && p.y === gridY));
-          addToHistory(newPixels, "erase");
-        } else if (currentTool === "fill") {
-          const targetColor = prev.find(
-            (p) => p.x === gridX && p.y === gridY
-          )?.color;
-          const floodFill = (startX: number, startY: number) => {
-            const stack = [{ x: startX, y: startY }];
-            const filled = new Set<string>();
+          let newPixels = [...layer.pixels];
 
-            while (stack.length > 0) {
-              const current = stack.pop()!;
-              const key = `${current.x},${current.y}`;
+          if (currentTool === "eraser") {
+            newPixels = layer.pixels.filter(
+              (p) => !(p.x === gridX && p.y === gridY)
+            );
+          } else if (currentTool === "fill") {
+            const targetColor = layer.pixels.find(
+              (p) => p.x === gridX && p.y === gridY
+            )?.color;
+            const floodFill = (startX: number, startY: number) => {
+              const stack = [{ x: startX, y: startY }];
+              const filled = new Set<string>();
 
-              if (filled.has(key)) continue;
-              if (
-                current.x < 0 ||
-                current.x >= gridSize ||
-                current.y < 0 ||
-                current.y >= gridSize
-              )
-                continue;
+              while (stack.length > 0) {
+                const current = stack.pop()!;
+                const key = `${current.x},${current.y}`;
 
-              const existingPixel = prev.find(
-                (p) => p.x === current.x && p.y === current.y
-              );
-              if (
-                targetColor
-                  ? existingPixel?.color === targetColor
-                  : !existingPixel
-              ) {
-                filled.add(key);
-                newPixels = newPixels.filter(
-                  (p) => !(p.x === current.x && p.y === current.y)
+                if (filled.has(key)) continue;
+                if (
+                  current.x < 0 ||
+                  current.x >= gridSize ||
+                  current.y < 0 ||
+                  current.y >= gridSize
+                )
+                  continue;
+
+                const existingPixel = layer.pixels.find(
+                  (p) => p.x === current.x && p.y === current.y
                 );
-                newPixels.push({
-                  x: current.x,
-                  y: current.y,
-                  color: currentColor,
-                });
+                if (
+                  targetColor
+                    ? existingPixel?.color === targetColor
+                    : !existingPixel
+                ) {
+                  filled.add(key);
+                  newPixels = newPixels.filter(
+                    (p) => !(p.x === current.x && p.y === current.y)
+                  );
+                  newPixels.push({
+                    x: current.x,
+                    y: current.y,
+                    color: currentColor,
+                  });
 
-                stack.push({ x: current.x + 1, y: current.y });
-                stack.push({ x: current.x - 1, y: current.y });
-                stack.push({ x: current.x, y: current.y + 1 });
-                stack.push({ x: current.x, y: current.y - 1 });
+                  stack.push({ x: current.x + 1, y: current.y });
+                  stack.push({ x: current.x - 1, y: current.y });
+                  stack.push({ x: current.x, y: current.y + 1 });
+                  stack.push({ x: current.x, y: current.y - 1 });
+                }
               }
-            }
-          };
+            };
 
-          floodFill(gridX, gridY);
-          addToHistory(newPixels, "fill");
-        } else {
-          const filtered = prev.filter(
-            (p) => !(p.x === gridX && p.y === gridY)
-          );
-          newPixels = [
-            ...filtered,
-            { x: gridX, y: gridY, color: currentColor },
-          ];
-          addToHistory(newPixels, "draw");
-        }
+            floodFill(gridX, gridY);
+          } else {
+            const filtered = layer.pixels.filter(
+              (p) => !(p.x === gridX && p.y === gridY)
+            );
+            newPixels = [
+              ...filtered,
+              { x: gridX, y: gridY, color: currentColor },
+            ];
+          }
 
-        return newPixels;
+          return { ...layer, pixels: newPixels };
+        });
+
+        addToHistory(newLayers, currentTool === "eraser" ? "erase" : "draw");
+        return newLayers;
       });
     },
-    [currentColor, currentTool, gridSize, zoom, addToHistory]
+    [currentColor, currentTool, gridSize, zoom, activeLayerId, addToHistory]
   );
 
   const clearCanvas = useCallback(() => {
-    setPixels([]);
-    addToHistory([], "clear");
+    setLayers((prev) => {
+      const newLayers = prev.map((layer) => ({
+        ...layer,
+        pixels: [],
+      }));
+      addToHistory(newLayers, "clear");
+      return newLayers;
+    });
   }, [addToHistory]);
 
   const undo = useCallback(() => {
     if (historyIndex > 0) {
       setHistoryIndex((prev) => prev - 1);
-      setPixels(history[historyIndex - 1].pixels);
+      const historyEntry = history[historyIndex - 1];
+      setLayers(historyEntry.layers);
+      setActiveLayerId(historyEntry.activeLayerId);
     }
   }, [history, historyIndex]);
 
   const redo = useCallback(() => {
     if (historyIndex < history.length - 1) {
       setHistoryIndex((prev) => prev + 1);
-      setPixels(history[historyIndex + 1].pixels);
+      const historyEntry = history[historyIndex + 1];
+      setLayers(historyEntry.layers);
+      setActiveLayerId(historyEntry.activeLayerId);
     }
   }, [history, historyIndex]);
 
@@ -233,7 +348,9 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
 
   return {
     gridSize,
-    pixels,
+    pixels: getVisiblePixels(),
+    layers,
+    activeLayerId,
     currentColor,
     currentTool,
     zoom,
@@ -255,5 +372,10 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
     setZoomConstrained,
     calculateMinZoom,
     constrainPanOffset,
+    addLayer,
+    deleteLayer,
+    duplicateLayer,
+    updateLayer,
+    setActiveLayerId,
   };
 };

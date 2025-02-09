@@ -13,6 +13,7 @@ type HeaderProps = {
   onZoomChange: (zoom: number) => void;
   onSave: () => void;
   isSaving: boolean;
+  onToggleLayers: () => void;
 };
 
 export const Header = ({
@@ -22,6 +23,7 @@ export const Header = ({
   onZoomChange,
   onSave,
   isSaving,
+  onToggleLayers,
 }: HeaderProps) => {
   const [isGridDropdownOpen, setIsGridDropdownOpen] = useState(false);
   const [isZoomDropdownOpen, setIsZoomDropdownOpen] = useState(false);
@@ -96,16 +98,25 @@ export const Header = ({
             )}
           </View>
 
+          {/* Layer Toggle Button */}
+          <TouchableOpacity style={styles.iconButton} onPress={onToggleLayers}>
+            <MaterialCommunityIcons
+              name="layers"
+              size={ICON_SIZE}
+              color="#fff"
+            />
+          </TouchableOpacity>
+
           {/* Save Button */}
           <TouchableOpacity
-            style={styles.saveButton}
+            style={styles.iconButton}
             onPress={onSave}
             disabled={isSaving}
           >
             <MaterialCommunityIcons
               name="content-save"
               size={ICON_SIZE}
-              color="#fff"
+              color={isSaving ? "#666" : "#fff"}
             />
           </TouchableOpacity>
         </View>
@@ -175,10 +186,9 @@ const styles = StyleSheet.create({
     color: "#fff",
     textAlign: "center",
   },
-  saveButton: {
+  iconButton: {
     padding: 8,
     borderRadius: 8,
     backgroundColor: "#333",
-    marginLeft: "auto",
   },
 });

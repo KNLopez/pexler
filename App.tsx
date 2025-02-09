@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import ViewShot from "react-native-view-shot";
 import { Header } from "./components/Header";
+import { LayerPanel } from "./components/LayerPanel";
 import { MainCanvas } from "./components/MainCanvas";
 import { Tools } from "./components/Tools";
 import { usePixelEditor } from "./hooks/usePixelEditor";
@@ -20,6 +21,8 @@ export default function App() {
   const {
     gridSize,
     pixels,
+    layers,
+    activeLayerId,
     currentColor,
     currentTool,
     zoom,
@@ -39,10 +42,16 @@ export default function App() {
     setPanOffset,
     setZoomConstrained,
     calculateMinZoom,
+    addLayer,
+    deleteLayer,
+    duplicateLayer,
+    updateLayer,
+    setActiveLayerId,
   } = usePixelEditor(32);
 
   const [isPortrait, setIsPortrait] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [showLayers, setShowLayers] = useState(false);
   const viewShotRef = useRef<ViewShot>(null);
   const [hasMediaPermission, setHasMediaPermission] = useState(false);
 
@@ -175,32 +184,53 @@ export default function App() {
           onZoomChange={handleZoomChange}
           onSave={handleSave}
           isSaving={isSaving}
+          onToggleLayers={() => setShowLayers(!showLayers)}
         />
 
-        <MainCanvas
-          ref={viewShotRef}
-          pixels={pixels}
-          gridSize={gridSize}
-          canvasSize={canvasSize}
-          scaledSize={scaledSize}
-          pixelSize={pixelSize}
-          panOffset={panOffset}
-          saveCanvasSize={saveCanvasSize}
-          savePixelSize={savePixelSize}
-          onPixelPress={handlePixelPress}
-          panResponder={{
-            onStartShouldSetPanResponder: () => true,
-            onPanResponderGrant: handlePanStart,
-            onPanResponderMove: (_, gestureState) => {
-              handlePanMove(
-                gestureState.dx * 0.5,
-                gestureState.dy * 0.5,
-                canvasSize
-              );
-            },
-            onPanResponderRelease: handlePanEnd,
-          }}
-        />
+        <View style={styles.mainContent}>
+          <MainCanvas
+            ref={viewShotRef}
+            pixels={pixels}
+            gridSize={gridSize}
+            canvasSize={canvasSize}
+            scaledSize={scaledSize}
+            pixelSize={pixelSize}
+            panOffset={panOffset}
+            saveCanvasSize={saveCanvasSize}
+            savePixelSize={savePixelSize}
+            onPixelPress={handlePixelPress}
+            panResponder={{
+              onStartShouldSetPanResponder: () => true,
+              onPanResponderGrant: handlePanStart,
+              onPanResponderMove: (_, gestureState) => {
+                handlePanMove(
+                  gestureState.dx * 0.5,
+                  gestureState.dy * 0.5,
+                  canvasSize
+                );
+              },
+              onPanResponderRelease: handlePanEnd,
+            }}
+          />
+
+          {showLayers && (
+            <LayerPanel
+              layers={layers}
+              activeLayerId={activeLayerId}
+              onAddLayer={addLayer}
+              onDeleteLayer={deleteLayer}
+              onDuplicateLayer={duplicateLayer}
+              onLayerVisibilityChange={(id, visible) =>
+                updateLayer(id, { visible })
+              }
+              onLayerOpacityChange={(id, opacity) =>
+                updateLayer(id, { opacity })
+              }
+              onLayerSelect={setActiveLayerId}
+              onRenameLayer={(id, name) => updateLayer(id, { name })}
+            />
+          )}
+        </View>
 
         <Tools
           currentTool={currentTool}
@@ -230,5 +260,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#000",
+  },
+  mainContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

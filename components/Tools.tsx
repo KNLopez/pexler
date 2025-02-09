@@ -4,8 +4,8 @@ import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { ToolType } from "../hooks/usePixelEditor";
 import { ColorPicker } from "./ColorPicker";
 
-const ICON_SIZE = 18;
-const COLOR_ICON_SIZE = 16;
+const ICON_SIZE = 25;
+const COLOR_ICON_SIZE = 22;
 const DEFAULT_COLORS = [
   "#6366F1", // Indigo
   "#EC4899", // Pink
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   toolbarInner: {
-    maxWidth: 350,
+    maxWidth: 400,
     width: "100%",
     gap: 6,
     backgroundColor: "rgba(0,0,0,0.8)",
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   tool: {
-    padding: 3,
+    padding: 5,
     borderRadius: 3,
   },
   selectedTool: {
@@ -269,9 +269,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   colorButton: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 1,
     borderColor: "#666",
   },
