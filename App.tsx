@@ -66,6 +66,7 @@ export default function App() {
   } = usePixelEditor(32);
 
   const [isPortrait, setIsPortrait] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Add ref for ViewShot
   const viewShotRef = useRef<ViewShot>(null);
@@ -180,31 +181,56 @@ export default function App() {
 
   // Update save function
   const handleSave = async () => {
+    console.log("Saving...");
+    if (isSaving) return;
+
     try {
-      if (!viewShotRef.current || !hasMediaPermission) {
-        if (!hasMediaPermission) {
-          alert("Storage permission is required to save images");
-          return;
-        }
+      setIsSaving(true);
+
+      if (!viewShotRef.current?.capture) {
+        console.error("ViewShot ref or capture method is not available");
+        alert("Unable to save: ViewShot not ready");
+        return;
+      }
+
+      if (!hasMediaPermission) {
+        console.error("Media library permission not granted");
+        alert(
+          "Storage permission is required to save images. Please grant permission in your device settings."
+        );
         return;
       }
 
       // Capture the canvas as PNG
-      const uri = await viewShotRef.current?.capture({
+      console.log("Capturing canvas...");
+      const uri = await viewShotRef.current.capture({
         format: "png",
         quality: 1,
         result: "tmpfile",
+        width: saveCanvasSize,
+        height: saveCanvasSize,
       });
 
-      // Save to media library
+      if (!uri) {
+        console.error("Failed to capture canvas - no URI returned");
+        alert("Failed to capture canvas");
+        return;
+      }
 
+      console.log("Saving to media library...");
       const asset = await MediaLibrary.createAssetAsync(uri);
       await MediaLibrary.createAlbumAsync("Pixel Art", asset, false);
 
       alert("Image saved to gallery!");
     } catch (error) {
       console.error("Error saving image:", error);
-      alert("Failed to save image");
+      alert(
+        `Failed to save image: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -214,7 +240,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" hidden />
+      <StatusBar hidden />
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
@@ -298,24 +324,35 @@ export default function App() {
         </View>
 
         {/* Hidden canvas for saving */}
-        <View style={styles.hiddenCanvas}>
-          <ViewShot ref={viewShotRef} options={{ format: "png", quality: 1 }}>
-            <View
-              style={{
-                width: saveCanvasSize,
-                height: saveCanvasSize,
-                backgroundColor: "#fff",
-              }}
-            >
-              <Canvas style={{ flex: 1 }}>
-                <PixelCanvas
-                  pixels={pixels}
-                  gridSize={gridSize}
-                  pixelSize={savePixelSize}
-                  showGrid={false}
-                />
-              </Canvas>
-            </View>
+        <View
+          style={[
+            styles.hiddenCanvas,
+            {
+              width: saveCanvasSize,
+              height: saveCanvasSize,
+              backgroundColor: "#fff",
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <ViewShot
+            ref={viewShotRef}
+            options={{
+              format: "png",
+              quality: 1,
+              result: "tmpfile",
+              width: saveCanvasSize,
+              height: saveCanvasSize,
+            }}
+          >
+            <Canvas style={{ width: saveCanvasSize, height: saveCanvasSize }}>
+              <PixelCanvas
+                pixels={pixels}
+                gridSize={gridSize}
+                pixelSize={savePixelSize}
+                showGrid={false}
+              />
+            </Canvas>
           </ViewShot>
         </View>
 
@@ -690,12 +727,11 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
     backgroundColor: "#333",
-    marginLeft: 16,
+    marginLeft: "auto",
   },
   hiddenCanvas: {
     position: "absolute",
-    width: 1,
-    height: 1,
     opacity: 0,
+    zIndex: -1,
   },
 });
