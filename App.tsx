@@ -54,6 +54,7 @@ export default function App() {
   const [showLayers, setShowLayers] = useState(false);
   const viewShotRef = useRef<ViewShot>(null);
   const [hasMediaPermission, setHasMediaPermission] = useState(false);
+  const [isMoveMode, setIsMoveMode] = useState(false);
 
   // Add permission check
   useEffect(() => {
@@ -199,18 +200,13 @@ export default function App() {
             saveCanvasSize={saveCanvasSize}
             savePixelSize={savePixelSize}
             onPixelPress={handlePixelPress}
-            panResponder={{
-              onStartShouldSetPanResponder: () => true,
-              onPanResponderGrant: handlePanStart,
-              onPanResponderMove: (_, gestureState) => {
-                handlePanMove(
-                  gestureState.dx * 0.5,
-                  gestureState.dy * 0.5,
-                  canvasSize
-                );
-              },
-              onPanResponderRelease: handlePanEnd,
-            }}
+            onPanStart={handlePanStart}
+            onPanMove={(dx, dy) => handlePanMove(dx, dy, canvasSize)}
+            onPanEnd={handlePanEnd}
+            currentZoom={zoom}
+            onZoomChange={(newZoom) => setZoomConstrained(newZoom, canvasSize)}
+            isMoveMode={isMoveMode}
+            setIsMoveMode={setIsMoveMode}
           />
 
           {showLayers && (

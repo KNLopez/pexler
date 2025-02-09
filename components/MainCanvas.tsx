@@ -1,6 +1,13 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Canvas } from "@shopify/react-native-skia";
-import { forwardRef } from "react";
-import { StyleSheet, View } from "react-native";
+import { forwardRef, useRef } from "react";
+import {
+  GestureResponderEvent,
+  PanResponder,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import ViewShot from "react-native-view-shot";
 import { Pixel } from "../hooks/usePixelEditor";
 import { PixelCanvas } from "./PixelCanvas";
@@ -15,7 +22,13 @@ type MainCanvasProps = {
   saveCanvasSize: number;
   savePixelSize: number;
   onPixelPress: (x: number, y: number, canvasSize: number) => void;
-  panResponder: any;
+  onPanStart: () => void;
+  onPanMove: (dx: number, dy: number, canvasSize: number) => void;
+  onPanEnd: () => void;
+  currentZoom: number;
+  onZoomChange: (zoom: number) => void;
+  isMoveMode: boolean;
+  setIsMoveMode: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export const MainCanvas = forwardRef<ViewShot, MainCanvasProps>(
@@ -30,10 +43,110 @@ export const MainCanvas = forwardRef<ViewShot, MainCanvasProps>(
       saveCanvasSize,
       savePixelSize,
       onPixelPress,
-      panResponder,
+      onPanStart,
+      onPanMove,
+      onPanEnd,
+      currentZoom,
+      onZoomChange,
+      isMoveMode,
+      setIsMoveMode,
     },
     viewShotRef
   ) => {
+    const lastTouchesRef = useRef<{ [key: string]: { x: number; y: number } }>(
+      {}
+    );
+    const isDrawingRef = useRef(false);
+    const initialPinchDistanceRef = useRef<number | null>(null);
+    const initialZoomRef = useRef<number>(currentZoom);
+    const lastMidpointRef = useRef<{ x: number; y: number } | null>(null);
+
+    const calculateMidpoint = (
+      touch1: { x: number; y: number },
+      touch2: { x: number; y: number }
+    ) => ({
+      x: (touch1.x + touch2.x) / 2,
+      y: (touch1.y + touch2.y) / 2,
+    });
+
+    const calculateDistance = (
+      touch1: { x: number; y: number },
+      touch2: { x: number; y: number }
+    ) => {
+      return Math.sqrt(
+        Math.pow(touch2.x - touch1.x, 2) + Math.pow(touch2.y - touch1.y, 2)
+      );
+    };
+
+    const panResponder = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+
+      onPanResponderGrant: (e: GestureResponderEvent) => {
+        const touches = e.nativeEvent.touches;
+        lastTouchesRef.current = {};
+
+        if (touches.length === 1) {
+          if (isMoveMode) {
+            isDrawingRef.current = false;
+            onPanStart();
+          } else {
+            const touch = touches[0];
+            const { locationX, locationY } = touch;
+            isDrawingRef.current = true;
+            onPixelPress(locationX, locationY, canvasSize);
+          }
+        }
+
+        touches.forEach((t) => {
+          lastTouchesRef.current[t.identifier] = {
+            x: t.pageX,
+            y: t.pageY,
+          };
+        });
+      },
+
+      onPanResponderMove: (e: GestureResponderEvent) => {
+        const touches = e.nativeEvent.touches;
+
+        if (touches.length === 1) {
+          if (isMoveMode) {
+            const touch = touches[0];
+            const lastTouch = lastTouchesRef.current[touch.identifier];
+            if (lastTouch) {
+              const dx = touch.pageX - lastTouch.x;
+              const dy = touch.pageY - lastTouch.y;
+              onPanMove(dx, dy, canvasSize);
+            }
+            lastTouchesRef.current[touch.identifier] = {
+              x: touch.pageX,
+              y: touch.pageY,
+            };
+          } else if (isDrawingRef.current) {
+            const touch = touches[0];
+            const { locationX, locationY } = touch;
+            onPixelPress(locationX, locationY, canvasSize);
+          }
+        }
+      },
+
+      onPanResponderRelease: () => {
+        if (!isDrawingRef.current) {
+          onPanEnd();
+        }
+        lastTouchesRef.current = {};
+        isDrawingRef.current = false;
+      },
+
+      onPanResponderTerminate: () => {
+        if (!isDrawingRef.current) {
+          onPanEnd();
+        }
+        lastTouchesRef.current = {};
+        isDrawingRef.current = false;
+      },
+    });
+
     return (
       <View style={styles.mainContent}>
         {/* Hidden canvas for saving */}
@@ -69,38 +182,74 @@ export const MainCanvas = forwardRef<ViewShot, MainCanvasProps>(
           </ViewShot>
         </View>
 
-        {/* Main visible canvas */}
-        <View style={styles.canvasWrapper}>
-          <View
-            style={[
-              styles.canvasContainer,
-              { width: canvasSize, height: canvasSize },
-            ]}
-            {...panResponder.panHandlers}
-          >
-            <Canvas
-              style={{
-                width: scaledSize,
-                height: scaledSize,
-                backgroundColor: "#f0f0f0",
-                transform: [
-                  { translateX: panOffset.x },
-                  { translateY: panOffset.y },
-                ],
-              }}
-              onTouchStart={(event) => {
-                const x = event.nativeEvent.locationX;
-                const y = event.nativeEvent.locationY;
-                onPixelPress(x, y, canvasSize);
-              }}
+        {/* Main canvas with controls */}
+        <View style={styles.canvasWithControls}>
+          {/* Move control */}
+          <View style={styles.leftControls}>
+            <TouchableOpacity
+              style={[styles.controlButton, isMoveMode && styles.activeControl]}
+              onPress={() => setIsMoveMode((prev: boolean) => !prev)}
             >
-              <PixelCanvas
-                pixels={pixels}
-                gridSize={gridSize}
-                pixelSize={pixelSize}
-                showGrid={true}
+              <MaterialCommunityIcons
+                name="cursor-move"
+                size={24}
+                color={isMoveMode ? "#6366F1" : "#fff"}
               />
-            </Canvas>
+            </TouchableOpacity>
+          </View>
+
+          {/* Canvas wrapper */}
+          <View style={styles.canvasWrapper}>
+            <View
+              style={[
+                styles.canvasContainer,
+                { width: canvasSize, height: canvasSize },
+              ]}
+            >
+              <Canvas
+                style={{
+                  width: scaledSize,
+                  height: scaledSize,
+                  backgroundColor: "#f0f0f0",
+                  transform: [
+                    { translateX: panOffset.x },
+                    { translateY: panOffset.y },
+                  ],
+                }}
+                {...panResponder.panHandlers}
+              >
+                <PixelCanvas
+                  pixels={pixels}
+                  gridSize={gridSize}
+                  pixelSize={pixelSize}
+                  showGrid={true}
+                />
+              </Canvas>
+            </View>
+          </View>
+
+          {/* Zoom controls */}
+          <View style={styles.rightControls}>
+            <TouchableOpacity
+              style={styles.controlButton}
+              onPress={() => onZoomChange(Math.min(200, currentZoom + 25))}
+            >
+              <MaterialCommunityIcons
+                name="magnify-plus"
+                size={24}
+                color="#fff"
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.controlButton}
+              onPress={() => onZoomChange(Math.max(50, currentZoom - 25))}
+            >
+              <MaterialCommunityIcons
+                name="magnify-minus"
+                size={24}
+                color="#fff"
+              />
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -113,6 +262,30 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  canvasWithControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  leftControls: {
+    gap: 8,
+  },
+  rightControls: {
+    gap: 8,
+  },
+  controlButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#333",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  activeControl: {
+    backgroundColor: "#1a1a1a",
+    borderWidth: 2,
+    borderColor: "#6366F1",
   },
   canvasWrapper: {
     aspectRatio: 1,

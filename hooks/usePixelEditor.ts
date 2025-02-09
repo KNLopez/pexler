@@ -154,7 +154,6 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
   const handlePixelPress = useCallback(
     (x: number, y: number, canvasSize: number) => {
       const scaledSize = canvasSize * (zoom / 100);
-      const pixelSize = scaledSize / gridSize;
 
       const normalizedX = (x / scaledSize) * canvasSize;
       const normalizedY = (y / scaledSize) * canvasSize;
@@ -309,17 +308,17 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
 
   const handlePanMove = useCallback(
     (dx: number, dy: number, canvasSize: number) => {
-      if (isPanning) {
-        setPanOffset((prev) => {
-          const newOffset = {
-            x: prev.x + dx,
-            y: prev.y + dy,
-          };
-          return constrainPanOffset(newOffset, canvasSize, zoom);
-        });
-      }
+      if (!isPanning) return;
+
+      setPanOffset((prev) => {
+        const newOffset = {
+          x: prev.x + dx,
+          y: prev.y + dy,
+        };
+        return constrainPanOffset(newOffset, canvasSize, zoom);
+      });
     },
-    [isPanning, zoom, constrainPanOffset]
+    [zoom, constrainPanOffset, isPanning]
   );
 
   const handlePanEnd = useCallback(() => {

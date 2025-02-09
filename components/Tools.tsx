@@ -148,31 +148,6 @@ export const Tools = ({
                   color="#fff"
                 />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.tool} onPress={onZoomIn}>
-                <MaterialCommunityIcons
-                  name="magnify-plus"
-                  size={ICON_SIZE}
-                  color="#fff"
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.tool}
-                onPress={onZoomOut}
-                disabled={!canZoomOut}
-              >
-                <MaterialCommunityIcons
-                  name="magnify-minus"
-                  size={ICON_SIZE}
-                  color={canZoomOut ? "#fff" : "rgba(255,255,255,0.3)"}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.tool} onPress={onRecenter}>
-                <MaterialCommunityIcons
-                  name="crop-free"
-                  size={ICON_SIZE}
-                  color="#fff"
-                />
-              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.tool}
                 onPress={onUndo}
