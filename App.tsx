@@ -1,17 +1,23 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Canvas, Group, Rect } from "@shopify/react-native-skia";
+import { Canvas } from "@shopify/react-native-skia";
+import * as MediaLibrary from "expo-media-library";
+import * as NavigationBar from "expo-navigation-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   PanResponder,
+  SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
   useWindowDimensions,
 } from "react-native";
+import ViewShot from "react-native-view-shot";
 import { ColorPicker } from "./components/ColorPicker";
+import { PixelCanvas } from "./components/PixelCanvas";
 import { ToolType, usePixelEditor } from "./hooks/usePixelEditor";
 
 const GRID_SIZE_OPTIONS = [16, 32, 64];
@@ -61,6 +67,20 @@ export default function App() {
 
   const [isPortrait, setIsPortrait] = useState(true);
 
+  // Add ref for ViewShot
+  const viewShotRef = useRef<ViewShot>(null);
+
+  // Add permission state
+  const [hasMediaPermission, setHasMediaPermission] = useState(false);
+
+  // Add permission check
+  useEffect(() => {
+    (async () => {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      setHasMediaPermission(status === "granted");
+    })();
+  }, []);
+
   useEffect(() => {
     const subscription = ScreenOrientation.addOrientationChangeListener(
       ({ orientationInfo }) => {
@@ -85,6 +105,16 @@ export default function App() {
     return () => {
       ScreenOrientation.removeOrientationChangeListener(subscription);
     };
+  }, []);
+
+  // Add navigation bar hiding effect
+  useEffect(() => {
+    async function hideNavigationBar() {
+      await NavigationBar.setVisibilityAsync("hidden");
+      // Optional: Set navigation bar color to match app theme
+      await NavigationBar.setBackgroundColorAsync("#000000");
+    }
+    hideNavigationBar();
   }, []);
 
   const canvasSize = isPortrait
@@ -148,310 +178,364 @@ export default function App() {
     return tool === "pen" || tool === "fill";
   };
 
+  // Update save function
+  const handleSave = async () => {
+    try {
+      if (!viewShotRef.current || !hasMediaPermission) {
+        if (!hasMediaPermission) {
+          alert("Storage permission is required to save images");
+          return;
+        }
+        return;
+      }
+
+      // Capture the canvas as PNG
+      const uri = await viewShotRef.current?.capture({
+        format: "png",
+        quality: 1,
+        result: "tmpfile",
+      });
+
+      // Save to media library
+
+      const asset = await MediaLibrary.createAssetAsync(uri);
+      await MediaLibrary.createAlbumAsync("Pixel Art", asset, false);
+
+      alert("Image saved to gallery!");
+    } catch (error) {
+      console.error("Error saving image:", error);
+      alert("Failed to save image");
+    }
+  };
+
+  // Add a separate canvas size for saving (to ensure good quality)
+  const saveCanvasSize = 512; // or any size you prefer
+  const savePixelSize = saveCanvasSize / gridSize;
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.controls}>
-          {/* Grid Size Dropdown */}
-          <View style={styles.dropdownContainer}>
-            <TouchableOpacity
-              style={styles.dropdown}
-              onPress={() => setIsGridDropdownOpen(!isGridDropdownOpen)}
-            >
-              <Text style={styles.dropdownText}>
-                {gridSize}×{gridSize}
-              </Text>
-              <Text style={styles.dropdownArrow}>▼</Text>
-            </TouchableOpacity>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="light" hidden />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <View style={styles.controls}>
+              {/* Grid Size Dropdown */}
+              <View style={styles.dropdownContainer}>
+                <TouchableOpacity
+                  style={styles.dropdown}
+                  onPress={() => setIsGridDropdownOpen(!isGridDropdownOpen)}
+                >
+                  <Text style={styles.dropdownText}>
+                    {gridSize}×{gridSize}
+                  </Text>
+                  <Text style={styles.dropdownArrow}>▼</Text>
+                </TouchableOpacity>
 
-            {isGridDropdownOpen && (
-              <View style={styles.dropdownMenu}>
-                {GRID_SIZE_OPTIONS.map((size) => (
-                  <TouchableOpacity
-                    key={size}
-                    style={[
-                      styles.dropdownItem,
-                      size === gridSize && styles.dropdownItemSelected,
-                    ]}
-                    onPress={() => {
-                      changeGridSize(size);
-                      setIsGridDropdownOpen(false);
-                    }}
-                  >
-                    <Text style={styles.dropdownItemText}>
-                      {size}×{size}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {isGridDropdownOpen && (
+                  <View style={styles.dropdownMenu}>
+                    {GRID_SIZE_OPTIONS.map((size) => (
+                      <TouchableOpacity
+                        key={size}
+                        style={[
+                          styles.dropdownItem,
+                          size === gridSize && styles.dropdownItemSelected,
+                        ]}
+                        onPress={() => {
+                          changeGridSize(size);
+                          setIsGridDropdownOpen(false);
+                        }}
+                      >
+                        <Text style={styles.dropdownItemText}>
+                          {size}×{size}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
-            )}
-          </View>
 
-          {/* Zoom Dropdown */}
-          <View style={styles.dropdownContainer}>
-            <TouchableOpacity
-              style={styles.dropdown}
-              onPress={() => setIsZoomDropdownOpen(!isZoomDropdownOpen)}
-            >
-              <Text style={styles.dropdownText}>{zoom}%</Text>
-              <Text style={styles.dropdownArrow}>▼</Text>
-            </TouchableOpacity>
+              {/* Zoom Dropdown */}
+              <View style={styles.dropdownContainer}>
+                <TouchableOpacity
+                  style={styles.dropdown}
+                  onPress={() => setIsZoomDropdownOpen(!isZoomDropdownOpen)}
+                >
+                  <Text style={styles.dropdownText}>{zoom}%</Text>
+                  <Text style={styles.dropdownArrow}>▼</Text>
+                </TouchableOpacity>
 
-            {isZoomDropdownOpen && (
-              <View style={styles.dropdownMenu}>
-                {ZOOM_OPTIONS.map((zoomLevel) => (
-                  <TouchableOpacity
-                    key={zoomLevel}
-                    style={[
-                      styles.dropdownItem,
-                      zoomLevel === zoom && styles.dropdownItemSelected,
-                    ]}
-                    onPress={() => handleZoomChange(zoomLevel)}
-                  >
-                    <Text style={styles.dropdownItemText}>{zoomLevel}%</Text>
-                  </TouchableOpacity>
-                ))}
+                {isZoomDropdownOpen && (
+                  <View style={styles.dropdownMenu}>
+                    {ZOOM_OPTIONS.map((zoomLevel) => (
+                      <TouchableOpacity
+                        key={zoomLevel}
+                        style={[
+                          styles.dropdownItem,
+                          zoomLevel === zoom && styles.dropdownItemSelected,
+                        ]}
+                        onPress={() => handleZoomChange(zoomLevel)}
+                      >
+                        <Text style={styles.dropdownItemText}>
+                          {zoomLevel}%
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
-            )}
+
+              {/* Save Button */}
+              <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+                <MaterialCommunityIcons
+                  name="content-save"
+                  size={ICON_SIZE}
+                  color="#fff"
+                />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
 
-      {/* Main Content */}
-      <View style={styles.mainContent}>
-        {/* Canvas */}
-        <View style={styles.canvasWrapper}>
-          <View
-            style={[
-              styles.canvasContainer,
-              { width: canvasSize, height: canvasSize },
-            ]}
-            {...panResponder.panHandlers}
-          >
-            <Canvas
+        {/* Hidden canvas for saving */}
+        <View style={styles.hiddenCanvas}>
+          <ViewShot ref={viewShotRef} options={{ format: "png", quality: 1 }}>
+            <View
               style={{
-                width: scaledSize,
-                height: scaledSize,
-                backgroundColor: "#f0f0f0",
-                transform: [
-                  { translateX: panOffset.x },
-                  { translateY: panOffset.y },
-                ],
-              }}
-              onTouchStart={(event) => {
-                const x = event.nativeEvent.locationX;
-                const y = event.nativeEvent.locationY;
-                handlePixelPress(x, y, canvasSize);
+                width: saveCanvasSize,
+                height: saveCanvasSize,
+                backgroundColor: "#fff",
               }}
             >
-              {/* Grid lines */}
-              <Group>
-                {Array.from({ length: gridSize + 1 }).map((_, i) => (
-                  <Group key={i}>
-                    <Rect
-                      x={i * pixelSize}
-                      y={0}
-                      width={1}
-                      height={scaledSize}
-                      color="rgba(0,0,0,0.1)"
-                    />
-                    <Rect
-                      x={0}
-                      y={i * pixelSize}
-                      width={scaledSize}
-                      height={1}
-                      color="rgba(0,0,0,0.1)"
-                    />
-                  </Group>
-                ))}
-              </Group>
+              <Canvas style={{ flex: 1 }}>
+                <PixelCanvas
+                  pixels={pixels}
+                  gridSize={gridSize}
+                  pixelSize={savePixelSize}
+                  showGrid={false}
+                />
+              </Canvas>
+            </View>
+          </ViewShot>
+        </View>
 
-              {/* Colored pixels */}
-              <Group>
-                {pixels.map((pixel, index) => (
-                  <Rect
-                    key={index}
-                    x={pixel.x * pixelSize}
-                    y={pixel.y * pixelSize}
-                    width={pixelSize}
-                    height={pixelSize}
-                    color={pixel.color}
-                  />
-                ))}
-              </Group>
-            </Canvas>
+        {/* Main visible canvas */}
+        <View style={styles.mainContent}>
+          <View style={styles.canvasWrapper}>
+            <View
+              style={[
+                styles.canvasContainer,
+                { width: canvasSize, height: canvasSize },
+              ]}
+              {...panResponder.panHandlers}
+            >
+              <Canvas
+                style={{
+                  width: scaledSize,
+                  height: scaledSize,
+                  backgroundColor: "#f0f0f0",
+                  transform: [
+                    { translateX: panOffset.x },
+                    { translateY: panOffset.y },
+                  ],
+                }}
+                onTouchStart={(event) => {
+                  const x = event.nativeEvent.locationX;
+                  const y = event.nativeEvent.locationY;
+                  handlePixelPress(x, y, canvasSize);
+                }}
+              >
+                <PixelCanvas
+                  pixels={pixels}
+                  gridSize={gridSize}
+                  pixelSize={pixelSize}
+                  showGrid={true}
+                />
+              </Canvas>
+            </View>
           </View>
         </View>
-      </View>
 
-      {/* Floating Toolbar */}
-      <View style={styles.floatingToolbar}>
-        <View style={styles.toolbarInner}>
-          {/* Colors - only show when pen or fill is selected */}
-          {shouldShowColors(currentTool) && (
+        {/* Floating Toolbar */}
+        <View style={styles.floatingToolbar}>
+          <View style={styles.toolbarInner}>
+            {/* Colors - only show when pen or fill is selected */}
+            {shouldShowColors(currentTool) && (
+              <View style={styles.toolbarSection}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.paletteScrollContainer}
+                >
+                  <View style={styles.palette}>
+                    {colors.map((color) => (
+                      <TouchableOpacity
+                        key={color}
+                        style={[
+                          styles.colorButton,
+                          { backgroundColor: color },
+                          color === currentColor && styles.selectedColor,
+                        ]}
+                        onPress={() => setCurrentColor(color)}
+                      />
+                    ))}
+                    <TouchableOpacity
+                      style={[styles.colorButton, styles.colorPickerButton]}
+                      onPress={() => setIsColorPickerVisible(true)}
+                    >
+                      <MaterialCommunityIcons
+                        name="palette"
+                        size={COLOR_ICON_SIZE}
+                        color="#fff"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Tools */}
             <View style={styles.toolbarSection}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.paletteScrollContainer}
+                contentContainerStyle={styles.toolsScrollContainer}
               >
-                <View style={styles.palette}>
-                  {colors.map((color) => (
-                    <TouchableOpacity
-                      key={color}
-                      style={[
-                        styles.colorButton,
-                        { backgroundColor: color },
-                        color === currentColor && styles.selectedColor,
-                      ]}
-                      onPress={() => setCurrentColor(color)}
-                    />
-                  ))}
+                <View style={styles.tools}>
                   <TouchableOpacity
-                    style={[styles.colorButton, styles.colorPickerButton]}
-                    onPress={() => setIsColorPickerVisible(true)}
+                    style={[
+                      styles.tool,
+                      currentTool === "pen" && styles.selectedTool,
+                    ]}
+                    onPress={() => setCurrentTool("pen")}
                   >
                     <MaterialCommunityIcons
-                      name="palette"
-                      size={COLOR_ICON_SIZE}
+                      name="pencil"
+                      size={ICON_SIZE}
+                      color="#fff"
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.tool,
+                      currentTool === "fill" && styles.selectedTool,
+                    ]}
+                    onPress={() => setCurrentTool("fill")}
+                  >
+                    <MaterialCommunityIcons
+                      name="format-color-fill"
+                      size={ICON_SIZE}
+                      color="#fff"
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.tool,
+                      currentTool === "eraser" && styles.selectedTool,
+                    ]}
+                    onPress={() => setCurrentTool("eraser")}
+                  >
+                    <MaterialCommunityIcons
+                      name="eraser"
+                      size={ICON_SIZE}
+                      color="#fff"
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.tool} onPress={zoomIn}>
+                    <MaterialCommunityIcons
+                      name="magnify-plus"
+                      size={ICON_SIZE}
+                      color="#fff"
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.tool}
+                    onPress={zoomOut}
+                    disabled={zoom <= calculateMinZoom(canvasSize)}
+                  >
+                    <MaterialCommunityIcons
+                      name="magnify-minus"
+                      size={ICON_SIZE}
+                      color={
+                        zoom > calculateMinZoom(canvasSize)
+                          ? "#fff"
+                          : "rgba(255,255,255,0.3)"
+                      }
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.tool}
+                    onPress={handleRecenter}
+                  >
+                    <MaterialCommunityIcons
+                      name="crop-free"
+                      size={ICON_SIZE}
+                      color="#fff"
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.tool}
+                    onPress={undo}
+                    disabled={!canUndo}
+                  >
+                    <MaterialCommunityIcons
+                      name="undo"
+                      size={ICON_SIZE}
+                      color={canUndo ? "#fff" : "rgba(255,255,255,0.3)"}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.tool}
+                    onPress={redo}
+                    disabled={!canRedo}
+                  >
+                    <MaterialCommunityIcons
+                      name="redo"
+                      size={ICON_SIZE}
+                      color={canRedo ? "#fff" : "rgba(255,255,255,0.3)"}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.tool} onPress={clearCanvas}>
+                    <MaterialCommunityIcons
+                      name="delete"
+                      size={ICON_SIZE}
                       color="#fff"
                     />
                   </TouchableOpacity>
                 </View>
               </ScrollView>
             </View>
-          )}
 
-          {/* Tools */}
-          <View style={styles.toolbarSection}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.toolsScrollContainer}
-            >
-              <View style={styles.tools}>
-                <TouchableOpacity
-                  style={[
-                    styles.tool,
-                    currentTool === "pen" && styles.selectedTool,
-                  ]}
-                  onPress={() => setCurrentTool("pen")}
-                >
-                  <MaterialCommunityIcons
-                    name="pencil"
-                    size={ICON_SIZE}
-                    color="#fff"
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.tool,
-                    currentTool === "fill" && styles.selectedTool,
-                  ]}
-                  onPress={() => setCurrentTool("fill")}
-                >
-                  <MaterialCommunityIcons
-                    name="format-color-fill"
-                    size={ICON_SIZE}
-                    color="#fff"
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.tool,
-                    currentTool === "eraser" && styles.selectedTool,
-                  ]}
-                  onPress={() => setCurrentTool("eraser")}
-                >
-                  <MaterialCommunityIcons
-                    name="eraser"
-                    size={ICON_SIZE}
-                    color="#fff"
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.tool} onPress={zoomIn}>
-                  <MaterialCommunityIcons
-                    name="magnify-plus"
-                    size={ICON_SIZE}
-                    color="#fff"
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.tool}
-                  onPress={zoomOut}
-                  disabled={zoom <= calculateMinZoom(canvasSize)}
-                >
-                  <MaterialCommunityIcons
-                    name="magnify-minus"
-                    size={ICON_SIZE}
-                    color={
-                      zoom > calculateMinZoom(canvasSize)
-                        ? "#fff"
-                        : "rgba(255,255,255,0.3)"
-                    }
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.tool} onPress={handleRecenter}>
-                  <MaterialCommunityIcons
-                    name="crop-free"
-                    size={ICON_SIZE}
-                    color="#fff"
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.tool}
-                  onPress={undo}
-                  disabled={!canUndo}
-                >
-                  <MaterialCommunityIcons
-                    name="undo"
-                    size={ICON_SIZE}
-                    color={canUndo ? "#fff" : "rgba(255,255,255,0.3)"}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.tool}
-                  onPress={redo}
-                  disabled={!canRedo}
-                >
-                  <MaterialCommunityIcons
-                    name="redo"
-                    size={ICON_SIZE}
-                    color={canRedo ? "#fff" : "rgba(255,255,255,0.3)"}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.tool} onPress={clearCanvas}>
-                  <MaterialCommunityIcons
-                    name="delete"
-                    size={ICON_SIZE}
-                    color="#fff"
-                  />
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
+            <ColorPicker
+              isVisible={isColorPickerVisible}
+              onClose={() => setIsColorPickerVisible(false)}
+              onSelectColor={handleColorSelect}
+              initialColor={currentColor}
+            />
           </View>
-
-          <ColorPicker
-            isVisible={isColorPickerVisible}
-            onClose={() => setIsColorPickerVisible(false)}
-            onSelectColor={handleColorSelect}
-            initialColor={currentColor}
-          />
         </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
   container: {
     flex: 1,
     backgroundColor: "#000",
   },
   header: {
-    padding: 20,
-    paddingBottom: 10,
+    padding: 10,
+    paddingBottom: 5,
+  },
+  headerContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   mainContent: {
     flex: 1,
@@ -476,7 +560,7 @@ const styles = StyleSheet.create({
   },
   floatingToolbar: {
     position: "absolute",
-    bottom: 20,
+    bottom: 10,
     left: 0,
     right: 0,
     alignItems: "center",
@@ -494,6 +578,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
+    flex: 1, // Take up remaining space
   },
   dropdownContainer: {
     position: "relative",
@@ -600,5 +685,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#666",
     alignItems: "center",
     justifyContent: "center",
+  },
+  saveButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#333",
+    marginLeft: 16,
+  },
+  hiddenCanvas: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    opacity: 0,
   },
 });
