@@ -1,6 +1,13 @@
 import { Canvas } from "@shopify/react-native-skia";
 import React, { useEffect, useRef, useState } from "react";
-import { Dimensions, Modal, StyleSheet, Text, View } from "react-native";
+import {
+  Dimensions,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import ViewShot from "react-native-view-shot";
 import { Layer } from "../hooks/usePixelEditor";
 import { PixelCanvas } from "./PixelCanvas";
@@ -18,7 +25,6 @@ export const AnimationPreview: React.FC<AnimationPreviewProps> = ({
   onClose,
   layers,
   gridSize,
-  hasMediaPermission,
 }) => {
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const windowWidth = Dimensions.get("window").width;
@@ -61,6 +67,12 @@ export const AnimationPreview: React.FC<AnimationPreviewProps> = ({
                 />
               </Canvas>
             </ViewShot>
+          </View>
+
+          <View style={styles.buttons}>
+            <TouchableOpacity style={styles.button} onPress={onClose}>
+              <Text style={styles.buttonText}>Close</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>

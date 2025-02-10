@@ -167,7 +167,7 @@ export const Header = ({
               disabled={isSaving}
             >
               <MaterialCommunityIcons
-                name="content-save"
+                name="export-variant"
                 size={ICON_SIZE}
                 color={isSaving ? "#666" : "#fff"}
               />
@@ -177,7 +177,7 @@ export const Header = ({
               onPress={onFileManagerOpen}
             >
               <MaterialCommunityIcons
-                name="file-document-outline"
+                name="content-save"
                 size={ICON_SIZE}
                 color="#fff"
               />
