@@ -1,6 +1,13 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
-import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import {
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { MirrorMode, ToolType } from "../hooks/usePixelEditor";
 import { ColorPicker } from "./ColorPicker";
 
@@ -16,55 +23,79 @@ const DEFAULT_COLORS = [
   "#FFFFFF", // White
 ];
 
+const BRUSH_SIZES = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16];
+
 type ToolsProps = {
   currentTool: ToolType;
   currentColor: string;
+  brushSize: number;
   onToolChange: (tool: ToolType) => void;
   onColorChange: (color: string) => void;
+  onBrushSizeChange: (size: number) => void;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
   onClear: () => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onRecenter: () => void;
   canZoomOut: boolean;
   mirrorMode: MirrorMode;
   setMirrorMode: (mode: MirrorMode) => void;
 };
 
+const BrushPreview = ({ size, color }: { size: number; color: string }) => {
+  const pixels = [];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      pixels.push(
+        <View
+          key={`${x}-${y}`}
+          style={[styles.previewPixel, { backgroundColor: color }]}
+        />
+      );
+    }
+  }
+
+  return (
+    <View style={[styles.previewGrid, { width: size * 8, height: size * 8 }]}>
+      {pixels}
+    </View>
+  );
+};
+
 export const Tools = ({
   currentTool,
   currentColor,
+  brushSize,
   onToolChange,
   onColorChange,
+  onBrushSizeChange,
   canUndo,
   canRedo,
   onUndo,
   onRedo,
   onClear,
-  onZoomIn,
-  onZoomOut,
-  onRecenter,
-  canZoomOut,
   mirrorMode,
   setMirrorMode,
 }: ToolsProps) => {
   const [colors, setColors] = useState(DEFAULT_COLORS);
   const [isColorPickerVisible, setIsColorPickerVisible] = useState(false);
+  const [isBrushSizeVisible, setIsBrushSizeVisible] = useState(false);
 
   const handleColorSelect = (color: string) => {
     setColors((prev) => {
       const newColors = [...prev];
       newColors.splice(0, 1);
-      return [...newColors, color]; // Add new color
+      return [...newColors, color];
     });
     onColorChange(color);
   };
 
   const shouldShowColors = (tool: ToolType) => {
     return tool === "pen" || tool === "fill";
+  };
+
+  const shouldShowBrushSize = (tool: ToolType) => {
+    return tool === "pen" || tool === "eraser";
   };
 
   return (
@@ -101,6 +132,15 @@ export const Tools = ({
                   />
                 </TouchableOpacity>
               </View>
+              {/* Brush Size - only show when pen or eraser is selected */}
+              {shouldShowBrushSize(currentTool) && (
+                <TouchableOpacity
+                  style={styles.brushSizeButton}
+                  onPress={() => setIsBrushSizeVisible(true)}
+                >
+                  <Text style={styles.brushSizeText}>{brushSize}px</Text>
+                </TouchableOpacity>
+              )}
             </ScrollView>
           </View>
         )}
@@ -239,6 +279,47 @@ export const Tools = ({
           onSelectColor={handleColorSelect}
           initialColor={currentColor}
         />
+
+        {/* Brush Size Modal */}
+        <Modal
+          visible={isBrushSizeVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsBrushSizeVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Brush Size</Text>
+              <View style={styles.brushSizeGrid}>
+                {BRUSH_SIZES.map((size) => (
+                  <TouchableOpacity
+                    key={size}
+                    style={[
+                      styles.brushSizeOption,
+                      brushSize === size && styles.selectedBrushSize,
+                    ]}
+                    onPress={() => {
+                      onBrushSizeChange(size);
+                      setIsBrushSizeVisible(false);
+                    }}
+                  >
+                    <Text style={styles.brushSizeOptionText}>{size}px</Text>
+                    <BrushPreview
+                      size={size}
+                      color={currentTool === "eraser" ? "#666" : currentColor}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setIsBrushSizeVisible(false)}
+              >
+                <Text style={styles.modalCloseButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </View>
   );
@@ -329,5 +410,93 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
     borderWidth: 2,
     borderColor: "#6366F1",
+  },
+  brushSizesContainer: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: 5,
+  },
+  brushSizes: {
+    flexDirection: "row",
+    backgroundColor: "#333",
+    padding: 10,
+    borderRadius: 6,
+    gap: 10,
+  },
+  brushSizeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#333",
+    padding: 8,
+    borderRadius: 6,
+    gap: 8,
+    marginLeft: 10,
+  },
+  brushSizeText: {
+    color: "#fff",
+    fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#333",
+    borderRadius: 16,
+    padding: 20,
+    width: "90%",
+    maxWidth: 400,
+  },
+  modalTitle: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  brushSizeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  brushSizeOption: {
+    alignItems: "center",
+    backgroundColor: "#444",
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#444",
+  },
+  selectedBrushSize: {
+    borderColor: "#6366F1",
+  },
+  brushSizeOptionText: {
+    color: "#fff",
+    marginBottom: 5,
+  },
+  modalCloseButton: {
+    backgroundColor: "#6366F1",
+    padding: 10,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  modalCloseButtonText: {
+    color: "#fff",
+    fontSize: 16,
+  },
+  previewGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    backgroundColor: "#fff",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  previewPixel: {
+    width: 8,
+    height: 8,
   },
 });

@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Layer } from "../hooks/usePixelEditor";
+import { Layer, Pixel } from "../hooks/usePixelEditor";
 import { AnimationPreview } from "./AnimationPreview";
 import { SpritesheetPreview } from "./SpritesheetPreview";
 
@@ -18,7 +18,8 @@ type HeaderProps = {
   onSave: () => void;
   isSaving: boolean;
   onToggleLayers: () => void;
-  createSpritesheet: () => { pixels: any[]; columns: number; rows: number };
+  createSpritesheet: () => { pixels: Pixel[]; columns: number; rows: number };
+  hasMediaPermission: boolean;
 };
 
 export const Header = ({
@@ -31,6 +32,7 @@ export const Header = ({
   isSaving,
   onToggleLayers,
   createSpritesheet,
+  hasMediaPermission,
 }: HeaderProps) => {
   const [isGridDropdownOpen, setIsGridDropdownOpen] = useState(false);
   const [isZoomDropdownOpen, setIsZoomDropdownOpen] = useState(false);
@@ -176,11 +178,11 @@ export const Header = ({
       <SpritesheetPreview
         isVisible={isSpritesheetPreviewVisible}
         onClose={() => setIsSpritesheetPreviewVisible(false)}
-        onSave={onSave}
         spritesheet={spritesheet}
         gridSize={gridSize}
         columns={columns}
         rows={rows}
+        hasMediaPermission={hasMediaPermission}
       />
 
       {/* Animation Preview Modal */}

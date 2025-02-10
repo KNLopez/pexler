@@ -47,6 +47,8 @@ export default function App() {
     duplicateLayer,
     updateLayer,
     setActiveLayerId,
+    brushSize,
+    setBrushSize,
   } = usePixelEditor(32);
 
   const [isPortrait, setIsPortrait] = useState(true);
@@ -56,7 +58,7 @@ export default function App() {
   const [hasMediaPermission, setHasMediaPermission] = useState(false);
   const [isMoveMode, setIsMoveMode] = useState(false);
   const [mirrorMode, setMirrorMode] = useState<MirrorMode>("none");
-  // Add permission check
+
   useEffect(() => {
     (async () => {
       const { status } = await MediaLibrary.requestPermissionsAsync();
@@ -108,48 +110,6 @@ export default function App() {
     setZoomConstrained(newZoom, canvasSize);
   };
 
-  const handleRecenter = () => {
-    setPanOffset({ x: 0, y: 0 });
-    setZoomConstrained(100, canvasSize);
-  };
-
-  const zoomIn = () => {
-    setZoomConstrained(zoom + 25, canvasSize);
-  };
-
-  const zoomOut = () => {
-    setZoomConstrained(zoom - 25, canvasSize);
-  };
-
-  const createSpriteSheet = () => {
-    const MAX_COLUMNS = 5;
-    const visibleLayers = layers.filter((layer) => layer.visible);
-    const columns = Math.min(MAX_COLUMNS, visibleLayers.length);
-    const rows = Math.ceil(visibleLayers.length / MAX_COLUMNS);
-
-    const spritesheet: Pixel[] = [];
-
-    visibleLayers.forEach((layer, index) => {
-      const row = Math.floor(index / MAX_COLUMNS);
-      const col = index % MAX_COLUMNS;
-
-      layer.pixels.forEach((pixel) => {
-        spritesheet.push({
-          x: pixel.x + col * gridSize,
-          y: pixel.y + row * gridSize,
-          color: pixel.color,
-        });
-      });
-    });
-
-    return {
-      pixels: spritesheet,
-      columns,
-      rows,
-    };
-  };
-
-  // Update save function
   const handleSave = async () => {
     console.log("Saving...");
     if (isSaving) return;
@@ -198,6 +158,34 @@ export default function App() {
     }
   };
 
+  const createSpriteSheet = () => {
+    const MAX_COLUMNS = 5;
+    const visibleLayers = layers.filter((layer) => layer.visible);
+    const columns = Math.min(MAX_COLUMNS, visibleLayers.length);
+    const rows = Math.ceil(visibleLayers.length / MAX_COLUMNS);
+
+    const spritesheet: Pixel[] = [];
+
+    visibleLayers.forEach((layer, index) => {
+      const row = Math.floor(index / MAX_COLUMNS);
+      const col = index % MAX_COLUMNS;
+
+      layer.pixels.forEach((pixel) => {
+        spritesheet.push({
+          x: pixel.x + col * gridSize,
+          y: pixel.y + row * gridSize,
+          color: pixel.color,
+        });
+      });
+    });
+
+    return {
+      pixels: spritesheet,
+      columns,
+      rows,
+    };
+  };
+
   // Add a separate canvas size for saving (to ensure good quality)
   const saveCanvasSize = 512;
   const savePixelSize = saveCanvasSize / gridSize;
@@ -216,6 +204,7 @@ export default function App() {
           isSaving={isSaving}
           onToggleLayers={() => setShowLayers(!showLayers)}
           createSpritesheet={createSpriteSheet}
+          hasMediaPermission={hasMediaPermission}
         />
 
         <View style={styles.mainContent}>
@@ -268,12 +257,11 @@ export default function App() {
           onUndo={undo}
           onRedo={redo}
           onClear={clearCanvas}
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          onRecenter={handleRecenter}
           canZoomOut={zoom > calculateMinZoom(canvasSize)}
           mirrorMode={mirrorMode}
           setMirrorMode={setMirrorMode}
+          brushSize={brushSize}
+          onBrushSizeChange={setBrushSize}
         />
       </View>
     </SafeAreaView>

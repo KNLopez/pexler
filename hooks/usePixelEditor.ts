@@ -42,6 +42,7 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
   const [activeLayerId, setActiveLayerId] = useState("layer-1");
   const [currentColor, setCurrentColor] = useState("#6366F1");
   const [currentTool, setCurrentTool] = useState<ToolType>("pen");
+  const [brushSize, setBrushSize] = useState(1);
   const [zoom, setZoom] = useState(100);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -111,11 +112,12 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
   const duplicateLayer = useCallback(
     (layerId: string) => {
       const layerToDuplicate = layers.find((l) => l.id === layerId);
+      const index = layers.findIndex((l) => l.id === layerId);
       if (!layerToDuplicate) return;
 
       const newLayer: Layer = {
-        id: `layer-${layers.length + 1}`,
-        name: `${layerToDuplicate.name} Copy`,
+        id: `layer-${Date.now()}`,
+        name: `${layerToDuplicate.name.split(" ")[0]} ${index + 1}`,
         pixels: JSON.parse(JSON.stringify(layerToDuplicate.pixels)),
         visible: true,
         opacity: 1,
@@ -155,13 +157,33 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
       );
   }, [layers]);
 
+  const getBrushPixels = useCallback(
+    (centerX: number, centerY: number) => {
+      const pixels: { x: number; y: number }[] = [];
+      const offset = Math.floor(brushSize / 2);
+
+      for (let y = -offset; y < brushSize - offset; y++) {
+        for (let x = -offset; x < brushSize - offset; x++) {
+          const newX = centerX + x;
+          const newY = centerY + y;
+
+          // Check if the pixel is within the grid bounds
+          if (newX >= 0 && newX < gridSize && newY >= 0 && newY < gridSize) {
+            pixels.push({ x: newX, y: newY });
+          }
+        }
+      }
+
+      return pixels;
+    },
+    [brushSize, gridSize]
+  );
+
   const handlePixelPress = useCallback(
     (x: number, y: number, canvasSize: number) => {
       const scaledSize = canvasSize * (zoom / 100);
-
       const normalizedX = (x / scaledSize) * canvasSize;
       const normalizedY = (y / scaledSize) * canvasSize;
-
       const gridX = Math.floor((normalizedX / canvasSize) * gridSize);
       const gridY = Math.floor((normalizedY / canvasSize) * gridSize);
 
@@ -175,77 +197,28 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
           let newPixels = [...layer.pixels];
           const mirroredPositions = getMirroredPositions(gridX, gridY);
 
-          if (currentTool === "eraser") {
-            newPixels = layer.pixels.filter(
-              (p) =>
-                !mirroredPositions.some((mp) => mp.x === p.x && mp.y === p.y)
-            );
-          } else if (currentTool === "fill") {
-            const targetColor = layer.pixels.find(
-              (p) => p.x === gridX && p.y === gridY
-            )?.color;
-            const floodFill = (startX: number, startY: number) => {
-              const stack = [{ x: startX, y: startY }];
-              const filled = new Set<string>();
+          mirroredPositions.forEach((pos) => {
+            const brushPixels = getBrushPixels(pos.x, pos.y);
 
-              while (stack.length > 0) {
-                const current = stack.pop()!;
-                const key = `${current.x},${current.y}`;
-
-                if (filled.has(key)) continue;
-                if (
-                  current.x < 0 ||
-                  current.x >= gridSize ||
-                  current.y < 0 ||
-                  current.y >= gridSize
-                )
-                  continue;
-
-                const existingPixel = layer.pixels.find(
-                  (p) => p.x === current.x && p.y === current.y
-                );
-                if (
-                  targetColor
-                    ? existingPixel?.color === targetColor
-                    : !existingPixel
-                ) {
-                  filled.add(key);
-                  newPixels = newPixels.filter(
-                    (p) => !(p.x === current.x && p.y === current.y)
-                  );
-                  newPixels.push({
-                    x: current.x,
-                    y: current.y,
-                    color: currentColor,
-                  });
-
-                  stack.push({ x: current.x + 1, y: current.y });
-                  stack.push({ x: current.x - 1, y: current.y });
-                  stack.push({ x: current.x, y: current.y + 1 });
-                  stack.push({ x: current.x, y: current.y - 1 });
-                }
-              }
-            };
-
-            // Apply flood fill to all mirrored positions
-            mirroredPositions.forEach((pos) => {
-              floodFill(pos.x, pos.y);
-            });
-          } else {
-            // Remove any existing pixels at the mirrored positions
-            newPixels = newPixels.filter(
-              (p) =>
-                !mirroredPositions.some((mp) => mp.x === p.x && mp.y === p.y)
-            );
-            // Add new pixels at all mirrored positions
-            mirroredPositions.forEach((pos) => {
-              newPixels.push({
-                x: pos.x,
-                y: pos.y,
-                color: currentColor,
+            if (currentTool === "eraser") {
+              newPixels = newPixels.filter(
+                (p) => !brushPixels.some((bp) => bp.x === p.x && bp.y === p.y)
+              );
+            } else if (currentTool === "pen") {
+              // Remove any existing pixels in the brush area
+              newPixels = newPixels.filter(
+                (p) => !brushPixels.some((bp) => bp.x === p.x && bp.y === p.y)
+              );
+              // Add new pixels
+              brushPixels.forEach((bp) => {
+                newPixels.push({
+                  x: bp.x,
+                  y: bp.y,
+                  color: currentColor,
+                });
               });
-            });
-          }
+            }
+          });
 
           return { ...layer, pixels: newPixels };
         });
@@ -262,6 +235,7 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
       activeLayerId,
       addToHistory,
       getMirroredPositions,
+      getBrushPixels,
     ]
   );
 
@@ -356,6 +330,8 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
     activeLayerId,
     currentColor,
     currentTool,
+    brushSize,
+    setBrushSize,
     mirrorMode,
     setMirrorMode,
     zoom,
@@ -367,7 +343,6 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
     clearCanvas,
     undo,
     redo,
-    setZoom,
     handlePanStart,
     handlePanMove,
     handlePanEnd,
