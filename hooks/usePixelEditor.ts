@@ -1,5 +1,6 @@
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useCallback, useEffect, useState } from "react";
+import { PixelArtFile } from "../utils/fileSystem";
 import { MirrorMode, useMirror } from "./useMirror";
 
 export type { MirrorMode };
@@ -323,6 +324,14 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
     [calculateMinZoom, centerGrid]
   );
 
+  const loadFromFile = useCallback((data: PixelArtFile) => {
+    setGridSize(data.gridSize);
+    setLayers(data.layers);
+    setActiveLayerId(data.layers[0]?.id || "layer-1");
+    setZoom(100);
+    setPanOffset({ x: 0, y: 0 });
+  }, []);
+
   return {
     gridSize,
     pixels: getVisiblePixels(),
@@ -356,5 +365,6 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
     duplicateLayer,
     updateLayer,
     setActiveLayerId,
+    loadFromFile,
   };
 };

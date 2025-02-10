@@ -20,6 +20,7 @@ type HeaderProps = {
   onToggleLayers: () => void;
   createSpritesheet: () => { pixels: Pixel[]; columns: number; rows: number };
   hasMediaPermission: boolean;
+  onFileManagerOpen: () => void;
 };
 
 export const Header = ({
@@ -33,6 +34,7 @@ export const Header = ({
   onToggleLayers,
   createSpritesheet,
   hasMediaPermission,
+  onFileManagerOpen,
 }: HeaderProps) => {
   const [isGridDropdownOpen, setIsGridDropdownOpen] = useState(false);
   const [isZoomDropdownOpen, setIsZoomDropdownOpen] = useState(false);
@@ -170,6 +172,16 @@ export const Header = ({
                 color={isSaving ? "#666" : "#fff"}
               />
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={onFileManagerOpen}
+            >
+              <MaterialCommunityIcons
+                name="file-document-outline"
+                size={ICON_SIZE}
+                color="#fff"
+              />
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -182,7 +194,6 @@ export const Header = ({
         gridSize={gridSize}
         columns={columns}
         rows={rows}
-        hasMediaPermission={hasMediaPermission}
       />
 
       {/* Animation Preview Modal */}
@@ -191,6 +202,7 @@ export const Header = ({
         onClose={() => setIsAnimationPreviewVisible(false)}
         layers={layers}
         gridSize={gridSize}
+        hasMediaPermission={hasMediaPermission}
       />
     </View>
   );

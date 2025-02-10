@@ -10,11 +10,13 @@ import {
   useWindowDimensions,
 } from "react-native";
 import ViewShot from "react-native-view-shot";
+import { FileManagerModal } from "./components/FileManagerModal";
 import { Header } from "./components/Header";
 import { LayerPanel } from "./components/LayerPanel";
 import { MainCanvas } from "./components/MainCanvas";
 import { Tools } from "./components/Tools";
-import { MirrorMode, Pixel, usePixelEditor } from "./hooks/usePixelEditor";
+import { Pixel, usePixelEditor } from "./hooks/usePixelEditor";
+import { PixelArtFile, savePixelArt } from "./utils/fileSystem";
 
 export default function App() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -49,15 +51,18 @@ export default function App() {
     setActiveLayerId,
     brushSize,
     setBrushSize,
+    mirrorMode,
+    setMirrorMode,
+    loadFromFile,
   } = usePixelEditor(32);
 
   const [isPortrait, setIsPortrait] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showLayers, setShowLayers] = useState(false);
+  const [isFileManagerVisible, setIsFileManagerVisible] = useState(false);
   const viewShotRef = useRef<ViewShot>(null);
   const [hasMediaPermission, setHasMediaPermission] = useState(false);
   const [isMoveMode, setIsMoveMode] = useState(false);
-  const [mirrorMode, setMirrorMode] = useState<MirrorMode>("none");
 
   useEffect(() => {
     (async () => {
@@ -190,6 +195,14 @@ export default function App() {
   const saveCanvasSize = 512;
   const savePixelSize = saveCanvasSize / gridSize;
 
+  const handleSaveFile = async (fileName: string) => {
+    await savePixelArt(fileName, gridSize, layers);
+  };
+
+  const handleLoadFile = (data: PixelArtFile) => {
+    loadFromFile(data);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar hidden />
@@ -205,6 +218,7 @@ export default function App() {
           onToggleLayers={() => setShowLayers(!showLayers)}
           createSpritesheet={createSpriteSheet}
           hasMediaPermission={hasMediaPermission}
+          onFileManagerOpen={() => setIsFileManagerVisible(true)}
         />
 
         <View style={styles.mainContent}>
@@ -220,10 +234,10 @@ export default function App() {
             savePixelSize={savePixelSize}
             onPixelPress={handlePixelPress}
             onPanStart={handlePanStart}
-            onPanMove={(dx, dy) => handlePanMove(dx, dy, canvasSize)}
+            onPanMove={handlePanMove}
             onPanEnd={handlePanEnd}
             currentZoom={zoom}
-            onZoomChange={(newZoom) => setZoomConstrained(newZoom, canvasSize)}
+            onZoomChange={handleZoomChange}
             isMoveMode={isMoveMode}
             setIsMoveMode={setIsMoveMode}
           />
@@ -262,6 +276,13 @@ export default function App() {
           setMirrorMode={setMirrorMode}
           brushSize={brushSize}
           onBrushSizeChange={setBrushSize}
+        />
+
+        <FileManagerModal
+          isVisible={isFileManagerVisible}
+          onClose={() => setIsFileManagerVisible(false)}
+          onLoad={handleLoadFile}
+          onSave={handleSaveFile}
         />
       </View>
     </SafeAreaView>

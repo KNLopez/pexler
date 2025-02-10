@@ -1,13 +1,7 @@
 import { Canvas } from "@shopify/react-native-skia";
-import React, { useEffect, useState } from "react";
-import {
-  Dimensions,
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Dimensions, Modal, StyleSheet, Text, View } from "react-native";
+import ViewShot from "react-native-view-shot";
 import { Layer } from "../hooks/usePixelEditor";
 import { PixelCanvas } from "./PixelCanvas";
 
@@ -16,6 +10,7 @@ type AnimationPreviewProps = {
   onClose: () => void;
   layers: Layer[];
   gridSize: number;
+  hasMediaPermission: boolean;
 };
 
 export const AnimationPreview: React.FC<AnimationPreviewProps> = ({
@@ -23,11 +18,13 @@ export const AnimationPreview: React.FC<AnimationPreviewProps> = ({
   onClose,
   layers,
   gridSize,
+  hasMediaPermission,
 }) => {
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const windowWidth = Dimensions.get("window").width;
   const previewSize = Math.min(windowWidth * 0.8, 400);
   const pixelSize = previewSize / gridSize;
+  const viewShotRef = useRef<ViewShot>(null);
 
   useEffect(() => {
     if (!isVisible) return;
@@ -48,19 +45,23 @@ export const AnimationPreview: React.FC<AnimationPreviewProps> = ({
           <Text style={styles.title}>Animation Preview</Text>
 
           <View style={styles.previewContainer}>
-            <Canvas style={{ width: previewSize, height: previewSize }}>
-              <PixelCanvas
-                pixels={currentFrame}
-                gridSize={gridSize}
-                pixelSize={pixelSize}
-                showGrid={false}
-              />
-            </Canvas>
+            <ViewShot ref={viewShotRef} options={{ format: "png", quality: 1 }}>
+              <Canvas
+                style={{
+                  width: previewSize,
+                  height: previewSize,
+                  backgroundColor: "#fff",
+                }}
+              >
+                <PixelCanvas
+                  pixels={currentFrame}
+                  gridSize={gridSize}
+                  pixelSize={pixelSize}
+                  showGrid={false}
+                />
+              </Canvas>
+            </ViewShot>
           </View>
-
-          <TouchableOpacity style={styles.button} onPress={onClose}>
-            <Text style={styles.buttonText}>Close</Text>
-          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -94,12 +95,19 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     backgroundColor: "#fff",
   },
+  buttons: {
+    flexDirection: "row",
+    gap: 10,
+  },
   button: {
     padding: 10,
     borderRadius: 8,
     backgroundColor: "#666",
     minWidth: 100,
     alignItems: "center",
+  },
+  saveButton: {
+    backgroundColor: "#6366F1",
   },
   buttonText: {
     color: "#fff",
