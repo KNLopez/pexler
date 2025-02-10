@@ -1,11 +1,12 @@
 import { Group, Rect } from "@shopify/react-native-skia";
-import { Pixel } from "../hooks/usePixelEditor";
+import { Pixel, Selection } from "../hooks/usePixelEditor";
 
 type PixelCanvasProps = {
   pixels: Pixel[];
   gridSize: number;
   pixelSize: number;
   showGrid?: boolean;
+  selection?: Selection;
 };
 
 export const PixelCanvas = ({
@@ -13,6 +14,7 @@ export const PixelCanvas = ({
   gridSize,
   pixelSize,
   showGrid = true,
+  selection,
 }: PixelCanvasProps) => {
   return (
     <Group>
@@ -53,6 +55,28 @@ export const PixelCanvas = ({
           />
         ))}
       </Group>
+
+      {/* Selection box */}
+      {selection?.start && selection?.end && (
+        <Group>
+          <Rect
+            x={selection.start.x * pixelSize}
+            y={selection.start.y * pixelSize}
+            width={(selection.end.x - selection.start.x + 1) * pixelSize}
+            height={(selection.end.y - selection.start.y + 1) * pixelSize}
+            color="rgba(99, 102, 241, 0.2)"
+          />
+          <Rect
+            x={selection.start.x * pixelSize}
+            y={selection.start.y * pixelSize}
+            width={(selection.end.x - selection.start.x + 1) * pixelSize}
+            height={(selection.end.y - selection.start.y + 1) * pixelSize}
+            style="stroke"
+            strokeWidth={2}
+            color="rgb(99, 102, 241)"
+          />
+        </Group>
+      )}
     </Group>
   );
 };

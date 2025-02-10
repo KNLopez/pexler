@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import ViewShot from "react-native-view-shot";
-import { Pixel } from "../hooks/usePixelEditor";
+import { Pixel, Selection, ToolType } from "../hooks/usePixelEditor";
 import { PixelCanvas } from "./PixelCanvas";
 
 type MainCanvasProps = {
@@ -29,6 +29,9 @@ type MainCanvasProps = {
   onZoomChange: (zoom: number) => void;
   isMoveMode: boolean;
   setIsMoveMode: React.Dispatch<React.SetStateAction<boolean>>;
+  selection?: Selection;
+  currentTool: ToolType;
+  onMoveSelection?: (dx: number, dy: number) => void;
 };
 
 export const MainCanvas = forwardRef<ViewShot, MainCanvasProps>(
@@ -50,6 +53,9 @@ export const MainCanvas = forwardRef<ViewShot, MainCanvasProps>(
       onZoomChange,
       isMoveMode,
       setIsMoveMode,
+      selection,
+      currentTool,
+      onMoveSelection,
     },
     viewShotRef
   ) => {
@@ -57,26 +63,7 @@ export const MainCanvas = forwardRef<ViewShot, MainCanvasProps>(
       {}
     );
     const isDrawingRef = useRef(false);
-    const initialPinchDistanceRef = useRef<number | null>(null);
-    const initialZoomRef = useRef<number>(currentZoom);
-    const lastMidpointRef = useRef<{ x: number; y: number } | null>(null);
-
-    const calculateMidpoint = (
-      touch1: { x: number; y: number },
-      touch2: { x: number; y: number }
-    ) => ({
-      x: (touch1.x + touch2.x) / 2,
-      y: (touch1.y + touch2.y) / 2,
-    });
-
-    const calculateDistance = (
-      touch1: { x: number; y: number },
-      touch2: { x: number; y: number }
-    ) => {
-      return Math.sqrt(
-        Math.pow(touch2.x - touch1.x, 2) + Math.pow(touch2.y - touch1.y, 2)
-      );
-    };
+    const isMovingSelectionRef = useRef(false);
 
     const panResponder = PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -87,12 +74,22 @@ export const MainCanvas = forwardRef<ViewShot, MainCanvasProps>(
         lastTouchesRef.current = {};
 
         if (touches.length === 1) {
+          const touch = touches[0];
+          const { locationX, locationY } = touch;
+
           if (isMoveMode) {
             isDrawingRef.current = false;
             onPanStart();
+          } else if (
+            currentTool === "select" &&
+            selection?.selectedPixels.length &&
+            locationX >= selection.start!.x * pixelSize &&
+            locationX <= (selection.end!.x + 1) * pixelSize &&
+            locationY >= selection.start!.y * pixelSize &&
+            locationY <= (selection.end!.y + 1) * pixelSize
+          ) {
+            isMovingSelectionRef.current = true;
           } else {
-            const touch = touches[0];
-            const { locationX, locationY } = touch;
             isDrawingRef.current = true;
             onPixelPress(locationX, locationY, canvasSize);
           }
@@ -110,40 +107,56 @@ export const MainCanvas = forwardRef<ViewShot, MainCanvasProps>(
         const touches = e.nativeEvent.touches;
 
         if (touches.length === 1) {
-          if (isMoveMode) {
-            const touch = touches[0];
-            const lastTouch = lastTouchesRef.current[touch.identifier];
-            if (lastTouch) {
-              const dx = touch.pageX - lastTouch.x;
-              const dy = touch.pageY - lastTouch.y;
+          const touch = touches[0];
+          const lastTouch = lastTouchesRef.current[touch.identifier];
+
+          if (lastTouch) {
+            const dx = touch.pageX - lastTouch.x;
+            const dy = touch.pageY - lastTouch.y;
+
+            if (isMoveMode) {
               onPanMove(dx, dy, canvasSize);
+            } else if (isMovingSelectionRef.current && onMoveSelection) {
+              const gridDx = Math.round(dx / pixelSize);
+              const gridDy = Math.round(dy / pixelSize);
+              if (gridDx !== 0 || gridDy !== 0) {
+                onMoveSelection(gridDx, gridDy);
+                lastTouchesRef.current[touch.identifier] = {
+                  x: touch.pageX,
+                  y: touch.pageY,
+                };
+              }
+            } else if (isDrawingRef.current) {
+              const { locationX, locationY } = touch;
+              onPixelPress(locationX, locationY, canvasSize);
             }
+          }
+
+          if (!isMovingSelectionRef.current) {
             lastTouchesRef.current[touch.identifier] = {
               x: touch.pageX,
               y: touch.pageY,
             };
-          } else if (isDrawingRef.current) {
-            const touch = touches[0];
-            const { locationX, locationY } = touch;
-            onPixelPress(locationX, locationY, canvasSize);
           }
         }
       },
 
       onPanResponderRelease: () => {
-        if (!isDrawingRef.current) {
+        if (!isDrawingRef.current && !isMovingSelectionRef.current) {
           onPanEnd();
         }
         lastTouchesRef.current = {};
         isDrawingRef.current = false;
+        isMovingSelectionRef.current = false;
       },
 
       onPanResponderTerminate: () => {
-        if (!isDrawingRef.current) {
+        if (!isDrawingRef.current && !isMovingSelectionRef.current) {
           onPanEnd();
         }
         lastTouchesRef.current = {};
         isDrawingRef.current = false;
+        isMovingSelectionRef.current = false;
       },
     });
 
@@ -228,6 +241,7 @@ export const MainCanvas = forwardRef<ViewShot, MainCanvasProps>(
                   gridSize={gridSize}
                   pixelSize={pixelSize}
                   showGrid={true}
+                  selection={selection}
                 />
               </Canvas>
             </View>

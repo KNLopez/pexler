@@ -18,13 +18,21 @@ export type Layer = {
   opacity: number;
 };
 
-export type ToolType = "pen" | "eraser" | "fill";
+const getPixelKey = (x: number, y: number) => `${x},${y}`;
+const parsePixelKey = (key: string) => {
+  const [x, y] = key.split(",").map(Number);
+  return { x, y };
+};
+
+export type ToolType = "pen" | "eraser" | "fill" | "rotate" | "flip";
 export type ActionType = "draw" | "erase" | "fill" | "clear" | "layer";
 
 interface HistoryEntry {
   layers: Layer[];
   activeLayerId: string;
   action: ActionType;
+  tool: ToolType;
+  timestamp: number;
 }
 
 export const usePixelEditor = (initialGridSize: number = 32) => {
@@ -63,17 +71,31 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
 
   const addToHistory = useCallback(
     (newLayers: Layer[], action: ActionType) => {
-      setHistory((prev) => [
-        ...prev.slice(0, historyIndex + 1),
-        {
-          layers: JSON.parse(JSON.stringify(newLayers)),
-          activeLayerId,
-          action,
-        },
-      ]);
-      setHistoryIndex((prev) => prev + 1);
+      if (historyIndex >= 0) {
+        const currentState = JSON.stringify(history[historyIndex].layers);
+        const newState = JSON.stringify(newLayers);
+        if (currentState === newState) return;
+      }
+
+      const newHistory = history.slice(0, historyIndex + 1);
+
+      newHistory.push({
+        layers: JSON.parse(JSON.stringify(newLayers)),
+        activeLayerId,
+        action,
+        tool: currentTool,
+        timestamp: Date.now(),
+      });
+
+      if (newHistory.length > 50) {
+        newHistory.shift();
+      } else {
+        setHistoryIndex(newHistory.length - 1);
+      }
+
+      setHistory(newHistory);
     },
-    [historyIndex, activeLayerId]
+    [history, historyIndex, activeLayerId, currentTool]
   );
 
   const addLayer = useCallback(() => {
@@ -180,6 +202,78 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
     [brushSize, gridSize]
   );
 
+  const floodFill = useCallback(
+    (
+      startX: number,
+      startY: number,
+      targetColor: string,
+      replacementColor: string,
+      existingPixels: Pixel[]
+    ) => {
+      if (targetColor === replacementColor) return existingPixels;
+
+      // Create a map of existing pixels for faster lookup
+      const pixelMap = new Map(
+        existingPixels.map((p) => [getPixelKey(p.x, p.y), p.color])
+      );
+
+      const visited = new Set<string>();
+      const queue: Array<[number, number]> = [[startX, startY]];
+      const newPixels = new Set<string>();
+
+      const isInBounds = (x: number, y: number) =>
+        x >= 0 && x < gridSize && y >= 0 && y < gridSize;
+
+      while (queue.length > 0) {
+        const [x, y] = queue.pop()!;
+        const key = getPixelKey(x, y);
+
+        if (visited.has(key)) continue;
+        visited.add(key);
+
+        const currentColor = pixelMap.get(key) || "transparent";
+        if (currentColor !== targetColor) continue;
+
+        newPixels.add(key);
+
+        // Check 4-connected neighbors
+        const neighbors = [
+          [x + 1, y],
+          [x - 1, y],
+          [x, y + 1],
+          [x, y - 1],
+        ];
+
+        for (const [nx, ny] of neighbors) {
+          if (isInBounds(nx, ny)) {
+            queue.push([nx, ny]);
+          }
+        }
+      }
+
+      // Create new pixels array with filled pixels
+      const resultPixels = [...existingPixels];
+
+      // Remove pixels that will be replaced
+      resultPixels.forEach((p, index) => {
+        if (newPixels.has(getPixelKey(p.x, p.y))) {
+          resultPixels[index] = { ...p, color: replacementColor };
+        }
+      });
+
+      // Add new pixels for empty spaces that were filled
+      newPixels.forEach((key) => {
+        if (!pixelMap.has(key)) {
+          const { x, y } = parsePixelKey(key);
+          resultPixels.push({ x, y, color: replacementColor });
+        }
+      });
+
+      return resultPixels;
+    },
+    [gridSize]
+  );
+
   const handlePixelPress = useCallback(
     (x: number, y: number, canvasSize: number) => {
       const scaledSize = canvasSize * (zoom / 100);
@@ -200,25 +294,73 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
 
           mirroredPositions.forEach((pos) => {
             const brushPixels = getBrushPixels(pos.x, pos.y);
+            console.log(currentTool);
+            switch (currentTool) {
+              case "eraser":
+                newPixels = newPixels.filter(
+                  (p) => !brushPixels.some((bp) => bp.x === p.x && bp.y === p.y)
+                );
+                break;
+              case "pen":
+                // Remove any existing pixels in the brush area
+                newPixels = newPixels.filter(
+                  (p) => !brushPixels.some((bp) => bp.x === p.x && bp.y === p.y)
+                );
 
-            if (currentTool === "eraser") {
-              newPixels = newPixels.filter(
-                (p) => !brushPixels.some((bp) => bp.x === p.x && bp.y === p.y)
-              );
-            } else if (currentTool === "pen") {
-              // Remove any existing pixels in the brush area
-              newPixels = newPixels.filter(
-                (p) => !brushPixels.some((bp) => bp.x === p.x && bp.y === p.y)
-              );
-              // Add new pixels
-              brushPixels.forEach((bp) => {
-                newPixels.push({
-                  x: bp.x,
-                  y: bp.y,
-                  color: currentColor,
+                brushPixels.forEach((bp) => {
+                  newPixels.push({
+                    x: bp.x,
+                    y: bp.y,
+                    color: currentColor,
+                  });
                 });
-              });
+                break;
+              case "fill":
+                const activeLayer = prev.find((l) => l.id === activeLayerId);
+                if (!activeLayer) return prev;
+
+                const targetPixel = activeLayer.pixels.find(
+                  (p) => p.x === gridX && p.y === gridY
+                );
+                const targetColor = targetPixel?.color || "transparent";
+
+                newPixels = floodFill(
+                  gridX,
+                  gridY,
+                  targetColor,
+                  currentColor,
+                  activeLayer.pixels
+                );
+
+                return prev.map((layer) =>
+                  layer.id === activeLayerId
+                    ? { ...layer, pixels: newPixels }
+                    : layer
+                );
+
+                break;
+              default:
+                break;
             }
+
+            // if (currentTool === "eraser") {
+            //   newPixels = newPixels.filter(
+            //     (p) => !brushPixels.some((bp) => bp.x === p.x && bp.y === p.y)
+            //   );
+            // } else if (currentTool === "pen") {
+            //   // Remove any existing pixels in the brush area
+            //   newPixels = newPixels.filter(
+            //     (p) => !brushPixels.some((bp) => bp.x === p.x && bp.y === p.y)
+            //   );
+            //   // Add new pixels
+            //   brushPixels.forEach((bp) => {
+            //     newPixels.push({
+            //       x: bp.x,
+            //       y: bp.y,
+            //       color: currentColor,
+            //     });
+            //   });
+            // }
           });
 
           return { ...layer, pixels: newPixels };
@@ -253,19 +395,23 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
 
   const undo = useCallback(() => {
     if (historyIndex > 0) {
-      setHistoryIndex((prev) => prev - 1);
       const historyEntry = history[historyIndex - 1];
-      setLayers(historyEntry.layers);
-      setActiveLayerId(historyEntry.activeLayerId);
+      if (historyEntry) {
+        setHistoryIndex((prev) => prev - 1);
+        setLayers(JSON.parse(JSON.stringify(historyEntry.layers)));
+        setActiveLayerId(historyEntry.activeLayerId);
+      }
     }
   }, [history, historyIndex]);
 
   const redo = useCallback(() => {
     if (historyIndex < history.length - 1) {
-      setHistoryIndex((prev) => prev + 1);
       const historyEntry = history[historyIndex + 1];
-      setLayers(historyEntry.layers);
-      setActiveLayerId(historyEntry.activeLayerId);
+      if (historyEntry) {
+        setHistoryIndex((prev) => prev + 1);
+        setLayers(JSON.parse(JSON.stringify(historyEntry.layers)));
+        setActiveLayerId(historyEntry.activeLayerId);
+      }
     }
   }, [history, historyIndex]);
 
@@ -304,24 +450,43 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
     setIsPanning(false);
   }, []);
 
-  const centerGrid = useCallback((canvasSize: number, currentZoom: number) => {
-    const scaledSize = canvasSize * (currentZoom / 100);
-    const centerOffset = (scaledSize - canvasSize) / 2;
-    return { x: -centerOffset, y: -centerOffset };
+  const centerGrid = useCallback(() => {
+    setZoom(100);
+    setPanOffset({ x: 0, y: 0 });
   }, []);
 
   const setZoomConstrained = useCallback(
     (newZoom: number, canvasSize: number) => {
       const minZoom = calculateMinZoom(canvasSize);
       const constrainedZoom = Math.max(minZoom, Math.min(newZoom, 1000));
-      setZoom(constrainedZoom);
 
-      const centeredOffset = centerGrid(canvasSize, constrainedZoom);
-      setPanOffset(centeredOffset);
+      // Calculate the center point of the current view
+      const currentCenter = {
+        x: -panOffset.x + canvasSize / 2,
+        y: -panOffset.y + canvasSize / 2,
+      };
+
+      // Calculate the scaling factor
+      const scale = constrainedZoom / zoom;
+
+      // Calculate new center after zoom
+      const newCenter = {
+        x: currentCenter.x * scale,
+        y: currentCenter.y * scale,
+      };
+
+      // Calculate new offset to maintain the center point
+      const newOffset = {
+        x: -(newCenter.x - canvasSize / 2),
+        y: -(newCenter.y - canvasSize / 2),
+      };
+
+      setZoom(constrainedZoom);
+      setPanOffset(newOffset);
 
       return constrainedZoom;
     },
-    [calculateMinZoom, centerGrid]
+    [calculateMinZoom, zoom, panOffset]
   );
 
   const loadFromFile = useCallback((data: PixelArtFile) => {
@@ -331,6 +496,68 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
     setZoom(100);
     setPanOffset({ x: 0, y: 0 });
   }, []);
+
+  const rotatePixels = useCallback(
+    (direction: "cw" | "ccw") => {
+      setLayers((prev) => {
+        const newLayers = prev.map((layer) => {
+          if (layer.id !== activeLayerId) return layer;
+
+          const rotatedPixels = layer.pixels.map((pixel) => {
+            if (direction === "cw") {
+              return {
+                ...pixel,
+                x: gridSize - 1 - pixel.y,
+                y: pixel.x,
+              };
+            } else {
+              return {
+                ...pixel,
+                x: pixel.y,
+                y: gridSize - 1 - pixel.x,
+              };
+            }
+          });
+
+          return { ...layer, pixels: rotatedPixels };
+        });
+
+        addToHistory(newLayers, "draw");
+        return newLayers;
+      });
+    },
+    [activeLayerId, gridSize, addToHistory]
+  );
+
+  const flipPixels = useCallback(
+    (direction: "horizontal" | "vertical") => {
+      setLayers((prev) => {
+        const newLayers = prev.map((layer) => {
+          if (layer.id !== activeLayerId) return layer;
+
+          const flippedPixels = layer.pixels.map((pixel) => {
+            if (direction === "horizontal") {
+              return {
+                ...pixel,
+                x: gridSize - 1 - pixel.x,
+              };
+            } else {
+              return {
+                ...pixel,
+                y: gridSize - 1 - pixel.y,
+              };
+            }
+          });
+
+          return { ...layer, pixels: flippedPixels };
+        });
+
+        addToHistory(newLayers, "draw");
+        return newLayers;
+      });
+    },
+    [activeLayerId, gridSize, addToHistory]
+  );
 
   return {
     gridSize,
@@ -366,5 +593,8 @@ export const usePixelEditor = (initialGridSize: number = 32) => {
     updateLayer,
     setActiveLayerId,
     loadFromFile,
+    rotatePixels,
+    flipPixels,
+    centerGrid,
   };
 };

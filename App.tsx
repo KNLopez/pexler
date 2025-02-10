@@ -54,11 +54,14 @@ export default function App() {
     mirrorMode,
     setMirrorMode,
     loadFromFile,
+    rotatePixels,
+    flipPixels,
+    centerGrid,
   } = usePixelEditor(32);
 
   const [isPortrait, setIsPortrait] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [showLayers, setShowLayers] = useState(false);
+  const [showLayers, setShowLayers] = useState(true);
   const [isFileManagerVisible, setIsFileManagerVisible] = useState(false);
   const viewShotRef = useRef<ViewShot>(null);
   const [hasMediaPermission, setHasMediaPermission] = useState(false);
@@ -203,6 +206,10 @@ export default function App() {
     loadFromFile(data);
   };
 
+  const handleRecenter = () => {
+    centerGrid();
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar hidden />
@@ -240,6 +247,7 @@ export default function App() {
             onZoomChange={handleZoomChange}
             isMoveMode={isMoveMode}
             setIsMoveMode={setIsMoveMode}
+            currentTool={currentTool}
           />
 
           {showLayers && (
@@ -276,6 +284,10 @@ export default function App() {
           setMirrorMode={setMirrorMode}
           brushSize={brushSize}
           onBrushSizeChange={setBrushSize}
+          onRotate={rotatePixels}
+          onFlip={flipPixels}
+          onRecenter={handleRecenter}
+          pixels={pixels}
         />
 
         <FileManagerModal

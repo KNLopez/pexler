@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Modal,
   ScrollView,
@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { MirrorMode, ToolType } from "../hooks/usePixelEditor";
+import { MirrorMode, Pixel, ToolType } from "../hooks/usePixelEditor";
 import { ColorPicker } from "./ColorPicker";
 
 const ICON_SIZE = 25;
@@ -22,6 +22,7 @@ const DEFAULT_COLORS = [
   "#8B5CF6", // Purple
   "#FFFFFF", // White
 ];
+const MAX_COLORS = 15;
 
 const BRUSH_SIZES = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16];
 
@@ -40,23 +41,44 @@ type ToolsProps = {
   canZoomOut: boolean;
   mirrorMode: MirrorMode;
   setMirrorMode: (mode: MirrorMode) => void;
+  onRotate: (direction: "cw" | "ccw") => void;
+  onFlip: (direction: "horizontal" | "vertical") => void;
+  onRecenter: () => void;
+  pixels: Pixel[]; //
 };
 
-const BrushPreview = ({ size, color }: { size: number; color: string }) => {
+const BrushPreview = ({
+  size,
+  color,
+  isEraser,
+}: {
+  size: number;
+  color: string;
+  isEraser?: boolean;
+}) => {
   const pixels = [];
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       pixels.push(
         <View
           key={`${x}-${y}`}
-          style={[styles.previewPixel, { backgroundColor: color }]}
+          style={[
+            styles.previewPixel,
+            isEraser ? styles.eraserPreviewPixel : { backgroundColor: color },
+          ]}
         />
       );
     }
   }
 
   return (
-    <View style={[styles.previewGrid, { width: size * 8, height: size * 8 }]}>
+    <View
+      style={[
+        styles.previewGrid,
+        { width: size * 8, height: size * 8 },
+        isEraser && styles.eraserPreviewGrid,
+      ]}
+    >
       {pixels}
     </View>
   );
@@ -76,15 +98,46 @@ export const Tools = ({
   onClear,
   mirrorMode,
   setMirrorMode,
+  onRotate,
+  onFlip,
+  onRecenter,
+  pixels,
 }: ToolsProps) => {
   const [colors, setColors] = useState(DEFAULT_COLORS);
   const [isColorPickerVisible, setIsColorPickerVisible] = useState(false);
   const [isBrushSizeVisible, setIsBrushSizeVisible] = useState(false);
 
+  // Add useEffect to update colors based on canvas pixels
+  useEffect(() => {
+    const usedColors = new Set<string>();
+
+    // Add current color first
+    usedColors.add(currentColor);
+
+    // Add colors from pixels
+    pixels.forEach((pixel) => {
+      usedColors.add(pixel.color);
+    });
+
+    // Convert to array and limit the number of colors
+    const newColors = Array.from(usedColors).slice(0, MAX_COLORS);
+
+    if (newColors.length === 0) {
+      setColors(DEFAULT_COLORS);
+      return;
+    }
+
+    // Add default white if not present
+    if (!newColors.includes("#FFFFFF")) {
+      newColors.push("#FFFFFF");
+    }
+
+    setColors(newColors);
+  }, [pixels, currentColor]);
+
   const handleColorSelect = (color: string) => {
     setColors((prev) => {
       const newColors = [...prev];
-      newColors.splice(0, 1);
       return [...newColors, color];
     });
     onColorChange(color);
@@ -102,13 +155,14 @@ export const Tools = ({
     <View style={styles.floatingToolbar}>
       <View style={styles.toolbarInner}>
         {/* Colors - only show when pen or fill is selected */}
-        {shouldShowColors(currentTool) && (
-          <View style={styles.toolbarSection}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.paletteScrollContainer}
-            >
+
+        <View style={styles.toolbarSection}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.paletteScrollContainer}
+          >
+            {shouldShowColors(currentTool) && (
               <View style={styles.palette}>
                 {colors.map((color) => (
                   <TouchableOpacity
@@ -132,18 +186,18 @@ export const Tools = ({
                   />
                 </TouchableOpacity>
               </View>
-              {/* Brush Size - only show when pen or eraser is selected */}
-              {shouldShowBrushSize(currentTool) && (
-                <TouchableOpacity
-                  style={styles.brushSizeButton}
-                  onPress={() => setIsBrushSizeVisible(true)}
-                >
-                  <Text style={styles.brushSizeText}>{brushSize}px</Text>
-                </TouchableOpacity>
-              )}
-            </ScrollView>
-          </View>
-        )}
+            )}
+            {/* Brush Size - only show when pen or eraser is selected */}
+            {shouldShowBrushSize(currentTool) && (
+              <TouchableOpacity
+                style={styles.brushSizeButton}
+                onPress={() => setIsBrushSizeVisible(true)}
+              >
+                <Text style={styles.brushSizeText}>{brushSize}px</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+        </View>
 
         {/* Tools */}
         <View style={styles.toolbarSection}>
@@ -188,6 +242,13 @@ export const Tools = ({
                   color="#fff"
                 />
               </TouchableOpacity>
+              <TouchableOpacity style={styles.tool} onPress={onRecenter}>
+                <MaterialCommunityIcons
+                  name="image-filter-center-focus"
+                  size={ICON_SIZE}
+                  color="#fff"
+                />
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.tool}
                 onPress={onUndo}
@@ -199,6 +260,7 @@ export const Tools = ({
                   color={canUndo ? "#fff" : "rgba(255,255,255,0.3)"}
                 />
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.tool}
                 onPress={onRedo}
@@ -213,6 +275,50 @@ export const Tools = ({
               <TouchableOpacity style={styles.tool} onPress={onClear}>
                 <MaterialCommunityIcons
                   name="delete"
+                  size={ICON_SIZE}
+                  color="#fff"
+                />
+              </TouchableOpacity>
+
+              <View style={styles.divider} />
+
+              {/* Transform Tools */}
+              <TouchableOpacity
+                style={styles.tool}
+                onPress={() => onRotate("ccw")}
+              >
+                <MaterialCommunityIcons
+                  name="rotate-left"
+                  size={ICON_SIZE}
+                  color="#fff"
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.tool}
+                onPress={() => onRotate("cw")}
+              >
+                <MaterialCommunityIcons
+                  name="rotate-right"
+                  size={ICON_SIZE}
+                  color="#fff"
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.tool}
+                onPress={() => onFlip("horizontal")}
+              >
+                <MaterialCommunityIcons
+                  name="flip-horizontal"
+                  size={ICON_SIZE}
+                  color="#fff"
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.tool}
+                onPress={() => onFlip("vertical")}
+              >
+                <MaterialCommunityIcons
+                  name="flip-vertical"
                   size={ICON_SIZE}
                   color="#fff"
                 />
@@ -335,7 +441,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   toolbarInner: {
-    maxWidth: 400,
+    maxWidth: 600,
     width: "100%",
     gap: 6,
     backgroundColor: "rgba(0,0,0,0.8)",
@@ -498,5 +604,13 @@ const styles = StyleSheet.create({
   previewPixel: {
     width: 8,
     height: 8,
+  },
+  eraserPreviewPixel: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  eraserPreviewGrid: {
+    backgroundColor: "#666",
   },
 });

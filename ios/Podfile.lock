@@ -1516,6 +1516,8 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - react-native-image-sequence (0.7.0):
+    - React
   - react-native-skia (1.11.5):
     - DoubleConversion
     - glog
@@ -2036,6 +2038,7 @@ DEPENDENCIES:
   - React-logger (from `../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
+  - react-native-image-sequence (from `../node_modules/react-native-image-sequence`)
   - "react-native-skia (from `../node_modules/@shopify/react-native-skia`)"
   - "react-native-slider (from `../node_modules/@react-native-community/slider`)"
   - react-native-view-shot (from `../node_modules/react-native-view-shot`)
@@ -2180,6 +2183,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   React-microtasksnativemodule:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
+  react-native-image-sequence:
+    :path: "../node_modules/react-native-image-sequence"
   react-native-skia:
     :path: "../node_modules/@shopify/react-native-skia"
   react-native-slider:
@@ -2300,6 +2305,7 @@ SPEC CHECKSUMS:
   React-logger: 5cad0c76d056809523289e589309012215a393b5
   React-Mapbuffer: a381120aea722d2244d4e4b663a10d4c3b2d4e51
   React-microtasksnativemodule: d9b946675010659cddd1c7611c074216579c8ad3
+  react-native-image-sequence: 52d8209fda1bf8fcded241db25b98b2506f31c88
   react-native-skia: fbcf18f326e0cfbb864eeeab47e50fe9e8bc2670
   react-native-slider: d1a9121980fc81678c6d30b82f312c778fba563c
   react-native-view-shot: 60117a0ac87a504a39ee9f079e632011916e7724
