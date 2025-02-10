@@ -1,6 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Layer } from "../hooks/usePixelEditor";
+import { AnimationPreview } from "./AnimationPreview";
+import { SpritesheetPreview } from "./SpritesheetPreview";
 
 const ICON_SIZE = 18;
 const GRID_SIZE_OPTIONS = [8, 16, 32, 64, 128, 256];
@@ -9,24 +12,42 @@ const ZOOM_OPTIONS = [100, 125, 150, 175, 200, 300, 500, 1000];
 type HeaderProps = {
   gridSize: number;
   zoom: number;
+  layers: Layer[];
   onGridSizeChange: (size: number) => void;
   onZoomChange: (zoom: number) => void;
   onSave: () => void;
   isSaving: boolean;
   onToggleLayers: () => void;
+  createSpritesheet: () => { pixels: any[]; columns: number; rows: number };
 };
 
 export const Header = ({
   gridSize,
   zoom,
+  layers,
   onGridSizeChange,
   onZoomChange,
   onSave,
   isSaving,
   onToggleLayers,
+  createSpritesheet,
 }: HeaderProps) => {
   const [isGridDropdownOpen, setIsGridDropdownOpen] = useState(false);
   const [isZoomDropdownOpen, setIsZoomDropdownOpen] = useState(false);
+  const [isSpritesheetPreviewVisible, setIsSpritesheetPreviewVisible] =
+    useState(false);
+  const [isAnimationPreviewVisible, setIsAnimationPreviewVisible] =
+    useState(false);
+
+  const handleSpritesheetPreview = () => {
+    setIsSpritesheetPreviewVisible(true);
+  };
+
+  const handleAnimationPreview = () => {
+    setIsAnimationPreviewVisible(true);
+  };
+
+  const { pixels: spritesheet, columns, rows } = createSpritesheet();
 
   return (
     <View style={styles.header}>
@@ -111,6 +132,30 @@ export const Header = ({
               />
             </TouchableOpacity>
 
+            {/* Animation Preview Button */}
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={handleAnimationPreview}
+            >
+              <MaterialCommunityIcons
+                name="play"
+                size={ICON_SIZE}
+                color="#fff"
+              />
+            </TouchableOpacity>
+
+            {/* Spritesheet Button */}
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={handleSpritesheetPreview}
+            >
+              <MaterialCommunityIcons
+                name="view-grid"
+                size={ICON_SIZE}
+                color="#fff"
+              />
+            </TouchableOpacity>
+
             {/* Save Button */}
             <TouchableOpacity
               style={styles.iconButton}
@@ -126,6 +171,25 @@ export const Header = ({
           </View>
         </View>
       </View>
+
+      {/* Spritesheet Preview Modal */}
+      <SpritesheetPreview
+        isVisible={isSpritesheetPreviewVisible}
+        onClose={() => setIsSpritesheetPreviewVisible(false)}
+        onSave={onSave}
+        spritesheet={spritesheet}
+        gridSize={gridSize}
+        columns={columns}
+        rows={rows}
+      />
+
+      {/* Animation Preview Modal */}
+      <AnimationPreview
+        isVisible={isAnimationPreviewVisible}
+        onClose={() => setIsAnimationPreviewVisible(false)}
+        layers={layers}
+        gridSize={gridSize}
+      />
     </View>
   );
 };

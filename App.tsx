@@ -14,7 +14,7 @@ import { Header } from "./components/Header";
 import { LayerPanel } from "./components/LayerPanel";
 import { MainCanvas } from "./components/MainCanvas";
 import { Tools } from "./components/Tools";
-import { usePixelEditor } from "./hooks/usePixelEditor";
+import { MirrorMode, Pixel, usePixelEditor } from "./hooks/usePixelEditor";
 
 export default function App() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -55,7 +55,7 @@ export default function App() {
   const viewShotRef = useRef<ViewShot>(null);
   const [hasMediaPermission, setHasMediaPermission] = useState(false);
   const [isMoveMode, setIsMoveMode] = useState(false);
-
+  const [mirrorMode, setMirrorMode] = useState<MirrorMode>("none");
   // Add permission check
   useEffect(() => {
     (async () => {
@@ -121,6 +121,34 @@ export default function App() {
     setZoomConstrained(zoom - 25, canvasSize);
   };
 
+  const createSpriteSheet = () => {
+    const MAX_COLUMNS = 5;
+    const visibleLayers = layers.filter((layer) => layer.visible);
+    const columns = Math.min(MAX_COLUMNS, visibleLayers.length);
+    const rows = Math.ceil(visibleLayers.length / MAX_COLUMNS);
+
+    const spritesheet: Pixel[] = [];
+
+    visibleLayers.forEach((layer, index) => {
+      const row = Math.floor(index / MAX_COLUMNS);
+      const col = index % MAX_COLUMNS;
+
+      layer.pixels.forEach((pixel) => {
+        spritesheet.push({
+          x: pixel.x + col * gridSize,
+          y: pixel.y + row * gridSize,
+          color: pixel.color,
+        });
+      });
+    });
+
+    return {
+      pixels: spritesheet,
+      columns,
+      rows,
+    };
+  };
+
   // Update save function
   const handleSave = async () => {
     console.log("Saving...");
@@ -181,11 +209,13 @@ export default function App() {
         <Header
           gridSize={gridSize}
           zoom={zoom}
+          layers={layers}
           onGridSizeChange={changeGridSize}
           onZoomChange={handleZoomChange}
           onSave={handleSave}
           isSaving={isSaving}
           onToggleLayers={() => setShowLayers(!showLayers)}
+          createSpritesheet={createSpriteSheet}
         />
 
         <View style={styles.mainContent}>
@@ -242,6 +272,8 @@ export default function App() {
           onZoomOut={zoomOut}
           onRecenter={handleRecenter}
           canZoomOut={zoom > calculateMinZoom(canvasSize)}
+          mirrorMode={mirrorMode}
+          setMirrorMode={setMirrorMode}
         />
       </View>
     </SafeAreaView>
